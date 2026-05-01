@@ -1,18 +1,20 @@
-<img width="1710" height="1230" alt="Hoshi" src="https://github.com/user-attachments/assets/e0d06864-8c9f-4251-a3b1-27ec257341d3" />
-
 # Hoshi
 
-A simple SGF viewer/editor and GUI for KataGo to analyze one's Go games.
+A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
+
+![Hoshi](https://github.com/user-attachments/assets/e0d06864-8c9f-4251-a3b1-27ec257341d3)
+
+## Features
+* **Markup & Analysis:** Full suite of SGF markup tools, local KataGo evaluation bubbles, and score estimation graphs.
+* **Interactive Stone Editing:** Right-click a stone on the board (or a node in the tree) to pick it up and move it. Hoshi will automatically recalculate the timelines and board states for all future variations. 
 
 ## KataGo Engine
 * Comes bundled with **KataGo OpenCL**, which should run on most devices with no problems.
-* Alternatively, you can download the standalone .exe version and provide your own KataGo files.
+* Alternatively, you can download the standalone `.exe` version and provide your own KataGo engine, network, and configuration files via the Options menu.
 
 ## How to Download
-1. Go to the [Releases page](https://github.com/super-matako/Hoshi/releases/tag/v1.0.5).
+1. Go to the [Releases page](https://github.com/super-matako/Hoshi/releases/tag/v1.1.0).
 2. Download the zip file titled `Hoshi-KataGo.zip` for the version bundled with KataGo, or `Hoshi.exe` for the standalone version.
-3. Legacy versions available for pre-Windows 10 machines.
-4. Mac and Linux versions upcoming.
 
 ## Keyboard Shortcuts
 
@@ -44,13 +46,36 @@ A simple SGF viewer/editor and GUI for KataGo to analyze one's Go games.
 * `Spacebar` - Play / Pause KataGo Analysis
 * `C` - Toggle Score Estimate calculation
 * `Delete` / `Backspace` - Delete current node (and all future variations)
-* `Ctrl` + `Z` - Undo tree/node deletion
+* `Ctrl` + `Z` - Undo (Stone placement, node deletion, or stone edit)
+* `Ctrl` + `Y` - Redo
+* `Escape` - Cancel active stone edit
 
 ### File Operations
 * `Ctrl` + `N` - New Game
 * `Ctrl` + `O` - Open SGF file
 * `Ctrl` + `S` - Save current game
 * `Ctrl` + `Shift` + `S` - Save As...
+
+---
+
+## Changelog (v1.1.0)
+
+### Moved to Tauri
+Changing framework from Electron to Tauri has many advantages.
+* **Reduced filesize:** The application has now shrunk from **75.2 MB** down to **11.5 MB!**
+* **Truly portable .exe:** The application is a single, lightweight .exe that can be placed anywhere and be associated with .sgf files with no problems.
+* **Increased cross-platform compatibility:** This will help bring about Mac, Linux and mobile versions in the near future.
+
+### Interactive Editing
+You can now move stones around after they have been placed.
+* **Drag-and-drop stone editing:** Right-click any placed stone (or right-click its node in the tree) to enter Edit Mode. The stone will lift off the board and be able to be moved on any other intersection without messing up the rest of the tree.
+* **Time-travelling stone editing:** You can edit a stone's placement from any place on the navigation tree. This makes it easier to edit earlier misplaced stones if you are transcribing a game and made a mistake.
+
+### Global Action Engine
+* **Undo/Redo:**`Ctrl+Z` and `Ctrl+Y` now undo/redo stone placements, branch deletions, and drag-and-drop spatial edits.
+
+### Visual Update
+* Slight visual changes to make things easier on the eyes.
 
 ## License
 This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE) - see the LICENSE file for details.
