@@ -61,8 +61,8 @@ A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 
 ## Changelog (v1.1.0)
 
-### Frontend Architecture Rebuild
-Removed all legacy frontend framework dependencies.
+### Moved to Tauri
+Changing framework from Electron to Tauri has many advantages.
 * **Reduced filesize:** The application has now shrunk from **75.2 MB** down to **11.5 MB!**
 * **Truly portable .exe:** The application is a single, lightweight .exe that can be placed anywhere and be associated with .sgf files with no problems.
 * **Increased cross-platform compatibility:** This will help bring about Mac, Linux and mobile versions in the near future.
