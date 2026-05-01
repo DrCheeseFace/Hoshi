@@ -2,7 +2,8 @@
 
 A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 
-![Hoshi](https://github.com/user-attachments/assets/e0d06864-8c9f-4251-a3b1-27ec257341d3)
+<img width="1736" height="1249" alt="Hoshi-Screenshot" src="https://github.com/user-attachments/assets/7ef0ec09-87d2-40cf-b88f-eacf38c32c20" />
+
 
 ## Features
 * **Markup & Analysis:** Full suite of SGF markup tools, local KataGo evaluation bubbles, and score estimation graphs.
@@ -72,7 +73,7 @@ You can now move stones around after they have been placed.
 * **Time-travelling stone editing:** You can edit a stone's placement from any place on the navigation tree. This makes it easier to edit earlier misplaced stones if you are transcribing a game and made a mistake.
 
 ### Global Action Engine
-* **Undo/Redo:**`Ctrl+Z` and `Ctrl+Y` now undo/redo stone placements, branch deletions, and drag-and-drop spatial edits.
+* **Undo/Redo:** `Ctrl+Z` and `Ctrl+Y` now undo/redo stone placements, branch deletions, and drag-and-drop spatial edits.
 
 ### Visual Update
 * Slight visual changes to make things easier on the eyes.
