@@ -10,12 +10,12 @@ A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 * **Interactive Stone Editing:** Right-click a stone on the board (or a node in the tree) to pick it up and move it. Hoshi will automatically recalculate the timelines and board states for all future variations. 
 
 ## KataGo Engine
-* Comes bundled with **KataGo OpenCL**, which should run on most devices with no problems.
-* Alternatively, you can download the standalone `.exe` version and provide your own KataGo engine, network, and configuration files via the Options menu.
+* Comes with an **Auto-setup** feature, that scans your system and recommends a KataGo engine version to download with the click of a button.
+* Alternatively, you can always provide your own, custom KataGo files.
 
 ## How to Download
-1. Go to the [Releases page](https://github.com/super-matako/Hoshi/releases/tag/v1.1.0).
-2. Download the zip file titled `Hoshi-KataGo.zip` for the version bundled with KataGo, or `Hoshi.exe` for the standalone version.
+1. Go to the [Releases page](https://github.com/super-matako/Hoshi/releases/tag/v1.1.1).
+2. Simply download `Hoshi.exe`.
 
 ## Keyboard Shortcuts
 
@@ -59,8 +59,13 @@ A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 
 ---
 
-## Changelog (v1.1.0)
+# Changelog
 
+## v1.1.1
+### Auto-setup feature
+No more bundling with a KataGo folder! If you don't already have KataGo, there is now a nifty `Auto-setup` button in the Options menu, allowing you to easily download the appropriate KataGo version for your system.
+
+## v1.1.0
 ### Moved to Tauri
 Changing framework from Electron to Tauri has many advantages.
 * **Reduced filesize:** The application has now shrunk from **75.2 MB** down to **11.5 MB!**
