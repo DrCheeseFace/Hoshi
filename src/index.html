@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -271,10 +270,12 @@
         .modal-btn-confirm { background: #ef4444; color: white; }
         .modal-btn-confirm:hover { background: #dc2626; }
 
+        #confirm-modal-overlay { z-index: 5000 !important; }
+
         /* Specialized Centered Modals */
-        #options-modal-overlay.active, #about-modal-overlay.active { display: flex !important; align-items: center !important; justify-content: center !important; background-color: rgba(20, 15, 10, 0.75) !important; pointer-events: auto !important; }
-        #options-modal-overlay .modal-box, #about-modal-overlay .modal-box { position: relative !important; top: auto !important; left: auto !important; margin: 0 !important; transform: translateY(15px); }
-        #options-modal-overlay.active .modal-box, #about-modal-overlay.active .modal-box { transform: translateY(0) !important; }
+        #options-modal-overlay.active, #about-modal-overlay.active, #download-modal-overlay.active { display: flex !important; align-items: center !important; justify-content: center !important; background-color: rgba(20, 15, 10, 0.75) !important; pointer-events: auto !important; }
+        #options-modal-overlay .modal-box, #about-modal-overlay .modal-box, #download-modal-overlay .modal-box { position: relative !important; top: auto !important; left: auto !important; margin: 0 !important; transform: translateY(15px); }
+        #options-modal-overlay.active .modal-box, #about-modal-overlay.active .modal-box, #download-modal-overlay.active .modal-box { transform: translateY(0) !important; }
 
         .options-section { margin-bottom: 20px; text-align: left; background: var(--header-bg); border: 1px solid var(--border-color); padding: 12px 15px; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
         .options-heading { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 0; margin-bottom: 12px; }
@@ -448,6 +449,13 @@
                       <button id="btn-toggle-analysis" class="tool-btn" style="width: 25px; height: 22px; flex-shrink: 0; padding: 0;" title="Resume Analysis (Space)">
                             <svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor; margin-left: 2px;"><polygon points="6,4 20,12 6,20"></polygon></svg>
                         </button>
+
+                        <svg id="analysis-spinner" viewBox="0 0 24 24" style="display: none; width: 12px; height: 12px; fill: none; stroke: var(--text-main); stroke-width: 3; stroke-linecap: round; flex-shrink: 0;">
+                            <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                            <path d="M12 2a10 10 0 0 1 10 10">
+                                <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite" />
+                            </path>
+                        </svg>
 
                         <div id="analysis-status" style="flex: 1; text-align: left; font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                             Analysis Paused
@@ -625,9 +633,11 @@
             <h3 id="confirm-modal-title" class="modal-title">Confirm Action</h3>
             <p id="confirm-modal-message" class="modal-message">Are you sure?</p>
 
-            <div id="confirm-modal-checkbox-container" style="display: none; margin-bottom: 20px; align-items: center; gap: 8px;">
-                <input type="checkbox" id="confirm-modal-checkbox" style="cursor: pointer;">
-                <label for="confirm-modal-checkbox" style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer; user-select: none;">Don't show this again</label>
+            <div style="height: 30px; margin-bottom: 15px; display: flex; align-items: center;">
+                <div id="confirm-modal-checkbox-container" style="display: none; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="confirm-modal-checkbox" style="cursor: pointer;">
+                    <label for="confirm-modal-checkbox" style="font-size: 0.85rem; color: var(--text-muted); cursor: pointer; user-select: none;">Don't show this again</label>
+                </div>
             </div>
 
             <div class="modal-actions">
@@ -708,7 +718,10 @@
               </div>
 
               <div class="options-section">
-                  <h4 class="options-heading">KataGo Engine</h4>
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;">
+                      <h4 class="options-heading" style="margin-bottom: 0;">KataGo Engine</h4>
+                      <button id="btn-auto-download" class="action-btn" style="flex: 0 0 auto; padding: 3px 10px; background: rgba(194, 155, 90, 0.15); color: var(--text-main); border-color: rgba(194, 155, 90, 0.4);">Auto-Setup</button>
+                  </div>
                   <div class="engine-input-group">
                       <span class="info-label" style="width: 80px; text-align: right; padding-right: 8px;">Executable</span>
                       <input type="text" id="opt-engine-exe" class="info-input" placeholder="Path to katago.exe" style="background: var(--input-bg);">
@@ -744,7 +757,7 @@
 
                 <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.6; margin-bottom: 25px;">
                     Never upset your star-point stones.<br><br>
-                    Version 1.1.0<br>
+                    Version 1.1.1<br>
                     Copyright &copy; 2026 The Hoshi Project<br><br>
                     <span style="font-size: 0.8rem; opacity: 0.8;">
                         Licensed under the PolyForm Noncommercial License 1.0.0.<br>
@@ -753,6 +766,49 @@
                 </p>
                 <div class="modal-actions" style="justify-content: center;">
                     <button id="btn-about-close" class="modal-btn modal-btn-cancel" style="width: 120px;">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="download-modal-overlay" class="modal-overlay">
+            <div class="modal-box" style="width: 460px;">
+                <h3 class="modal-title">KataGo Auto-Setup</h3>
+                <p class="modal-message" style="margin-top: -5px; margin-bottom: 15px;">Hoshi will scan your system and recommend a KataGo version.</p>
+
+                <div id="download-hardware-info" style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 12px; padding: 12px; background: var(--header-bg); border-radius: 6px; border: 1px solid var(--border-color); line-height: 1.5; height: 120px; display: flex; flex-direction: column; justify-content: center;">
+                    <div>Detecting hardware profile...</div>
+                </div>
+
+                <div id="download-dest-container" style="margin-bottom: 15px;">
+                    <span class="info-label" style="display: block; width: auto; margin-bottom: 4px; font-weight: bold; color: var(--text-main);">Choose Destination Folder:</span>
+                    <div class="engine-input-group" style="margin-bottom: 0;">
+                        <input type="text" id="dl-dest-input" class="info-input" style="background: var(--input-bg);">
+                        <button id="btn-dl-browse" class="action-btn" style="flex: 0 0 auto; margin-left: 8px; padding: 4px 10px;">Browse</button>
+                    </div>
+                </div>
+
+                <div id="download-progress-container" style="display: none; margin-bottom: 15px;">
+                    <p style="font-size: 0.8rem; color: #fbbf24; margin-top: 0; margin-bottom: 12px; line-height: 1.4; background: rgba(245, 158, 11, 0.1); padding: 8px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">
+                        <strong>Note:</strong> Running analysis for the first time after downloading KataGo will prompt KataGo to configure itself for your machine, which might take a few minutes. This will only happen once.
+                    </p>
+                    <div style="padding: 10px; background: var(--header-bg); border-radius: 6px; border: 1px solid var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                            <div id="dl-file-name" style="font-size: 0.85rem; font-weight: bold; color: var(--text-main);">Downloading...</div>
+                            <div id="dl-speed" style="font-size: 0.8rem; color: var(--text-muted);">0.0 MB/s</div>
+                        </div>
+                        <progress id="dl-progress-bar" value="0" max="100" style="width: 100%; height: 10px; margin-bottom: 6px; accent-color: rgb(194, 155, 90);"></progress>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+                            <span id="dl-stats">0.0 MB / 0.0 MB</span>
+                            <span id="dl-percent" style="font-weight: bold; color: var(--text-main);">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions" style="justify-content: flex-end; align-items: center;">
+                    <div style="display: flex; gap: 10px;">
+                        <button id="download-modal-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
+                        <button id="download-modal-start" class="modal-btn modal-btn-confirm" style="background: rgba(194, 155, 90, 0.4); border: 1px solid rgba(194, 155, 90, 0.6); color: var(--text-main);">Download</button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -388,6 +388,8 @@ let showWinrateGraph = true;
 let showKataBubbles = true;
 let isEngineMissing = false;
 
+let engineStatusMessage = null;
+
 let activeBubbles = new Set();
 let currentStoneHasScoreText = false;
 let textDrawQueue = []; // Queues text layers so they are strictly drawn over all other elements
@@ -1450,6 +1452,33 @@ function drawTreeMarkers() {
     }
 
     if (appSettings.optAltMove && currentNode.parent && currentNode.parent.children.length > 1) {
+
+        // PRE-CALCULATE PARENT ANALYSIS DATA ONCE TO SAVE CPU
+        let pMoves = null;
+        let parentWasBlackToPlay = false;
+        let absoluteBestMove = null;
+        let bestScoreLead = 0;
+        let parentHasAnalysis = false;
+
+        if (showKataBubbles && (currentNode.parent.visits >= 25 || isAnalysisPaused) && currentNode.parent.kataMoveInfos && currentNode.parent.kataMoveInfos.length > 0) {
+            parentHasAnalysis = true;
+            pMoves = [...currentNode.parent.kataMoveInfos];
+            parentWasBlackToPlay = currentNode.parent.color === 'white' || currentNode.parent === rootNode;
+
+            absoluteBestMove = pMoves.reduce((best, current) => {
+                let isBetter = false;
+                if (parentWasBlackToPlay) {
+                    if (current.winrate > best.winrate) isBetter = true;
+                    else if (current.winrate === best.winrate && current.scoreLead > best.scoreLead) isBetter = true;
+                } else {
+                    if (current.winrate < best.winrate) isBetter = true;
+                    else if (current.winrate === best.winrate && current.scoreLead < best.scoreLead) isBetter = true;
+                }
+                return isBetter ? current : best;
+            });
+            bestScoreLead = absoluteBestMove.scoreLead;
+        }
+
         for (let i = 0; i < currentNode.parent.children.length; i++) {
             let sibling = currentNode.parent.children[i];
 
@@ -1458,6 +1487,73 @@ function drawTreeMarkers() {
             if (sibling.x !== null && sibling.y !== null) {
                 const px = MARGIN_X + (sibling.x * CELL_WIDTH);
                 const py = MARGIN_Y + (sibling.y * CELL_HEIGHT);
+
+                // --- DRAW KATA BUBBLE FOR ALT MOVES ---
+                if (!boardState[sibling.x][sibling.y]) {
+                    let loss = null;
+                    let isBest = false;
+
+                    // 1. Try to get the score from the active parent sweep
+                    if (parentHasAnalysis) {
+                        let playedMoveInfo = pMoves.find(m => m.move === sibling.gtpCoord);
+                        if (playedMoveInfo) {
+                            loss = parentWasBlackToPlay ? (bestScoreLead - playedMoveInfo.scoreLead) : (playedMoveInfo.scoreLead - bestScoreLead);
+                            isBest = (playedMoveInfo.move === absoluteBestMove.move);
+                        } else if (sibling.scoreLead !== null) {
+                            // Sibling has a score, but wasn't in the active sweep
+                            loss = parentWasBlackToPlay ? (bestScoreLead - sibling.scoreLead) : (sibling.scoreLead - bestScoreLead);
+                        }
+                    }
+                    // 2. Fallback: Compare the sibling's score directly to the parent's score
+                    else if (sibling.scoreLead !== null && currentNode.parent.scoreLead !== null) {
+                        let pBlackToPlay = currentNode.parent.color === 'white' || currentNode.parent === rootNode;
+                        loss = pBlackToPlay ? (currentNode.parent.scoreLead - sibling.scoreLead) : (sibling.scoreLead - currentNode.parent.scoreLead);
+                    }
+
+                    // 3. Render the bubble if we successfully calculated a loss!
+                    if (loss !== null) {
+                        if (loss < 0) loss = 0;
+                        let siblingScoreStr = loss <= 0.05 ? "0.0" : "-" + loss.toFixed(1);
+
+                        ctx.save();
+                        if (isBest) ctx.fillStyle = THEME.bubbleBest;
+                        else if (loss <= 2.0) ctx.fillStyle = THEME.bubbleGood;
+                        else if (loss <= 4.0) ctx.fillStyle = THEME.bubbleOkay;
+                        else if (loss <= 7.0) ctx.fillStyle = THEME.bubbleBad;
+                        else ctx.fillStyle = THEME.bubbleTerrible;
+
+                        ctx.globalAlpha = 1.0;
+                        ctx.beginPath();
+                        ctx.ellipse(px, py, CELL_WIDTH * 0.495, CELL_WIDTH * 0.495, 0, 0, 2 * Math.PI);
+
+                        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                        ctx.shadowBlur = 4;
+                        ctx.shadowOffsetX = 0;
+                        ctx.shadowOffsetY = 2;
+                        ctx.fill();
+                        ctx.restore();
+
+                        activeBubbles.add(`${sibling.x},${sibling.y}`);
+
+                        let key = `${sibling.x},${sibling.y}`;
+                        let hasPermanentSymbol = currentNode.markup.has(key);
+                        let isHoveringSymbol = hoverPos && hoverPos.x === sibling.x && hoverPos.y === sibling.y && currentMode.startsWith('mark_');
+
+                        let textAlpha = (hasPermanentSymbol || isHoveringSymbol) ? 0.5 : 1.0;
+
+                        textDrawQueue.push({
+                            text: siblingScoreStr,
+                            x: px,
+                            y: py + 1,
+                            alpha: textAlpha,
+                            fillStyle: THEME.bubbleTextColor,
+                            font: `bold ${Math.max(11, CELL_WIDTH * 0.38)}px sans-serif`,
+                            shadowColor: 'rgba(0, 0, 0, 1.0)',
+                            shadowBlur: 4
+                        });
+                    }
+                }
+                // --- END KATA BUBBLE ---
 
                 let actualLineWidth = THEME.markerNextAltLineWidth;
                 let desiredStrokeColor = sibling.color === 'black' ? THEME.markerNextAltBlackColor : THEME.markerNextAltWhiteColor;
@@ -2517,6 +2613,8 @@ function updateAnalysisUI() {
         wrWhite.innerText = '';
     };
 
+    const spinner = document.getElementById('analysis-spinner');
+
     if (isAnalysisPaused) {
         box.classList.remove('active');
         statusText = 'Analysis Paused';
@@ -2527,6 +2625,8 @@ function updateAnalysisUI() {
 
         pwrBtn.innerHTML = `<svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor; margin-left: 2px;"><polygon points="6,4 20,12 6,20"></polygon></svg>`;
         pwrBtn.title = 'Resume Analysis (Space)';
+
+        if (spinner) spinner.style.display = 'none';
 
         setEmptyWinrate();
     } else {
@@ -2540,18 +2640,25 @@ function updateAnalysisUI() {
         pwrBtn.title = 'Pause Analysis (Space)';
 
         // Provide the user with feedback on what depth KataGo is currently sweeping
-        if (!isNodeOnMainLine(currentNode)) {
-            statusText = 'Deep pondering move (1000 visits)...';
-        } else if (currentAnalysisPhase === 1) {
-            statusText = 'Initializing...';
-        } else if (currentAnalysisPhase === 1.5) {
-            statusText = 'Evaluating branch (1 visit)...';
-        } else if (currentAnalysisPhase === 2) {
-            statusText = 'Main line: Fast sweep (25 visits)...';
-        } else if (currentAnalysisPhase === 3) {
-            statusText = 'Main line: Refining graph (50 visits)...';
+        if (engineStatusMessage) {
+            statusText = engineStatusMessage;
+            statusTextEl.style.color = 'var(--text-main)'; // Ivory
+            if (spinner) spinner.style.display = 'block';
         } else {
-            statusText = 'Deep pondering move (1000 visits)...';
+            if (spinner) spinner.style.display = 'none';
+            if (!isNodeOnMainLine(currentNode)) {
+                statusText = 'Deep pondering move (1000 visits)...';
+            } else if (currentAnalysisPhase === 1) {
+                statusText = 'Initializing...';
+            } else if (currentAnalysisPhase === 1.5) {
+                statusText = 'Evaluating branch (25 visits)...';
+            } else if (currentAnalysisPhase === 2) {
+                statusText = 'Main line: Fast sweep (25 visits)...';
+            } else if (currentAnalysisPhase === 3) {
+                statusText = 'Main line: Refining graph (50 visits)...';
+            } else {
+                statusText = 'Deep pondering move (1000 visits)...';
+            }
         }
 
         if (currentNode.winrate !== null) {
@@ -3672,7 +3779,7 @@ function sendAnalysisQuery() {
             targetPath = fullPath;
         } else if (variationToEvaluate) {
             currentAnalysisPhase = 1.5;
-            currentPhaseMaxVisits = 1;
+            currentPhaseMaxVisits = 25;
 
             let varPath = [];
             let temp = variationToEvaluate;
@@ -3757,6 +3864,8 @@ if (window.electronAPI) {
         let shouldUpdateText = false;
 
         for (let data of dataArray) {
+            engineStatusMessage = null; // Clear tuning message when data flows
+
             if (data.id && data.id !== currentQueryId) continue;
 
             if (data.turnNumber !== undefined) {
@@ -3855,6 +3964,13 @@ if (window.electronAPI) {
             isFileLinked = true;
         });
     }
+
+    document.addEventListener('internal-katago-status', (e) => {
+        engineStatusMessage = e.detail;
+        if (!isAnalysisPaused) {
+            updateAnalysisUI();
+        }
+    });
 }
 
 // ============================================================================
@@ -4255,6 +4371,239 @@ document.getElementById('btn-browse-cfg').addEventListener('click', async (e) =>
     }
 });
 
+// --- AUTO-DOWNLOAD & HARDWARE PROFILING ---
+const downloadOverlay = document.getElementById('download-modal-overlay');
+let pendingEngineUrl = "";
+let pendingNetworkUrl = "";
+
+// 1. Open Modal and Evaluate Hardware
+document.getElementById('btn-auto-download').addEventListener('click', async (e) => {
+    e.preventDefault();
+    downloadOverlay.classList.add('active');
+
+    const hwBox = document.getElementById('download-hardware-info');
+    const startBtn = document.getElementById('download-modal-start');
+    const destContainer = document.getElementById('download-dest-container');
+    const progContainer = document.getElementById('download-progress-container');
+    const destInput = document.getElementById('dl-dest-input');
+
+    hwBox.innerHTML = `
+        <div style="display: flex; justify-content: center; align-items: center; height: 100%; color: #f4ebd8;">
+            <svg viewBox="0 0 24 24" style="width: 36px; height: 36px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round;">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10">
+                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite" />
+                </path>
+            </svg>
+        </div>
+    `;
+    startBtn.disabled = true;
+    destContainer.style.display = 'block';
+    progContainer.style.display = 'none';
+
+    try {
+        const profile = await window.electronAPI.getSystemProfile();
+        const updates = await window.electronAPI.checkForUpdates();
+
+        // Populate Default Directory
+        const baseDir = await window.electronAPI.getAppBaseDir();
+        const resolvedDir = await window.electronAPI.resolveDestination(baseDir);
+        destInput.value = resolvedDir;
+
+        const gpu = profile.gpu.toLowerCase();
+        const os = profile.os;
+        const arch = profile.arch;
+        const ram = profile.ram_gb;
+
+        // Parse assets from GitHub API
+        const getAsset = (keyword) => updates.assets.find(url => url.includes(keyword));
+
+        let engineType = "";
+        if (os === "windows") {
+            pendingEngineUrl = getAsset("opencl-windows-x64");
+            engineType = "OpenCL (Windows)";
+        } else if (os === "macos") {
+            if (arch === "aarch64") {
+                pendingEngineUrl = getAsset("mac-m1");
+                engineType = "Apple Silicon Native";
+            } else {
+                pendingEngineUrl = getAsset("opencl-mac-intel");
+                engineType = "OpenCL (Mac Intel)";
+            }
+        } else if (os === "linux") {
+            pendingEngineUrl = getAsset("opencl-linux-x64");
+            engineType = "OpenCL (Linux)";
+        }
+
+        let netType = "";
+        const FAST_NET = "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b18c384nbt-s7192213760-d3579182099.bin.gz";
+        const STRONG_NET = "https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b40c256-s11101799168-d2715431527.bin.gz";
+
+        if (ram < 8 || gpu.includes("intel") || gpu.includes("integrated") || gpu === "unknown gpu") {
+            pendingNetworkUrl = FAST_NET;
+            netType = "18-Block (Optimized for Speed)";
+        } else {
+            pendingNetworkUrl = STRONG_NET;
+            netType = "40-Block (Maximum Strength)";
+        }
+
+        hwBox.innerHTML =
+            `<div style="width: 100%;">` +
+            `<strong>OS:</strong> ${os} (${arch})<br>` +
+            `<strong>RAM:</strong> ${ram} GB<br>` +
+            `<strong>GPU:</strong> ${profile.gpu}` +
+            `<hr style="border: none; border-top: 1px solid var(--border-color); margin: 10px 0;">` +
+            `<strong>Recommended Engine:</strong> ${engineType}<br>` +
+            `<strong>Recommended Network:</strong> ${netType}` +
+            `</div>`;
+
+        if (!pendingEngineUrl) {
+            startBtn.disabled = true;
+        } else {
+            startBtn.disabled = false;
+        }
+
+    } catch (err) {
+        console.error(err);
+        hwBox.innerHTML = "<div><span style='color:#ef4444;'>Failed to query system or GitHub API. Please check your internet connection and try again.</span></div>";
+        startBtn.disabled = true;
+    }
+});
+
+// 2. Custom Browse Button for the Download Modal
+document.getElementById('btn-dl-browse').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const folder = await window.electronAPI.chooseDownloadFolder();
+    if (folder) {
+        const resolvedDir = await window.electronAPI.resolveDestination(folder);
+        document.getElementById('dl-dest-input').value = resolvedDir;
+    }
+});
+
+// 3. Listen for Progress Updates
+if (window.electronAPI.onDownloadProgress) {
+    window.electronAPI.onDownloadProgress((data) => {
+        document.getElementById('dl-file-name').innerText = `Downloading: ${data.file}`;
+
+        const downloadedMB = (data.downloaded / 1048576).toFixed(1);
+        const totalMB = (data.total > 0) ? (data.total / 1048576).toFixed(1) : "???";
+        let percent = 0;
+        if (data.total > 0) percent = Math.round((data.downloaded / data.total) * 100);
+
+        document.getElementById('dl-progress-bar').value = percent;
+        document.getElementById('dl-stats').innerText = `${downloadedMB} MB / ${totalMB} MB`;
+        document.getElementById('dl-speed').innerText = `${data.speed.toFixed(1)} MB/s`;
+        document.getElementById('dl-percent').innerText = `${percent}%`;
+    });
+}
+
+// 4. Execute Download
+document.getElementById('download-modal-start').addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    // Use whatever path is currently sitting in the text input
+    const targetFolder = document.getElementById('dl-dest-input').value.trim();
+    if (!targetFolder) return;
+
+    // Check if files exist to prompt for overwrite
+    const exeName = pendingEngineUrl.includes("windows") ? "katago.exe" : "katago";
+    const exePath = targetFolder.replace(/[/\\]$/, '') + "/" + exeName;
+    const netPath = targetFolder.replace(/[/\\]$/, '') + "/default_model.bin.gz";
+
+    const exeExists = await window.electronAPI.checkFileExists(exePath);
+    const netExists = await window.electronAPI.checkFileExists(netPath);
+
+    if (exeExists || netExists) {
+        showConfirmModal(
+            "Overwrite Files?",
+            "Files with the same name already exist in this destination. Do you want to overwrite them?",
+            "Overwrite",
+            null, // Centers the confirm modal on screen
+            () => {
+                startDownloadProcess(targetFolder);
+            }
+        );
+    } else {
+        startDownloadProcess(targetFolder);
+    }
+});
+
+async function startDownloadProcess(targetFolder) {
+    const startBtn = document.getElementById('download-modal-start');
+    const cancelBtn = document.getElementById('download-modal-cancel');
+    const destContainer = document.getElementById('download-dest-container');
+    const progContainer = document.getElementById('download-progress-container');
+
+    // 1. SHUT DOWN THE ENGINE SO WINDOWS ALLOWS US TO OVERWRITE IT
+    isAnalysisPaused = true;
+    updateAnalysisUI();
+    if (window.electronAPI && window.electronAPI.stopEngine) {
+        await window.electronAPI.stopEngine();
+    }
+
+    // 2. Lock UI and Swap to Progress View
+    startBtn.disabled = true;
+    cancelBtn.disabled = false;
+    destContainer.style.display = 'none';
+    progContainer.style.display = 'block';
+
+    // Reset progress bar visually
+    document.getElementById('dl-progress-bar').value = 0;
+    document.getElementById('dl-percent').innerText = `0%`;
+
+    try {
+        const newPaths = await window.electronAPI.downloadKataGo(targetFolder, pendingEngineUrl, pendingNetworkUrl);
+
+        // Immediately populate the settings inputs
+        document.getElementById('opt-engine-exe').value = newPaths.exePath;
+        document.getElementById('opt-engine-network').value = newPaths.modelPath;
+        document.getElementById('opt-engine-config').value = newPaths.cfgPath;
+
+        // Force validation to clear any red error borders
+        validatePathField('opt-engine-exe');
+        validatePathField('opt-engine-network');
+        validatePathField('opt-engine-config');
+
+        downloadOverlay.classList.remove('active');
+    } catch (err) {
+        if (err === "Download cancelled by user") {
+            // Silently reset the UI back to the folder selection screen
+            destContainer.style.display = 'block';
+            progContainer.style.display = 'none';
+        } else {
+            console.error(err);
+            document.getElementById('dl-file-name').innerHTML = `<span style="color:#ef4444;">Download failed: ${err}</span>`;
+        }
+    } finally {
+        // Unlock UI
+        startBtn.disabled = false;
+        cancelBtn.disabled = false;
+    }
+}
+
+// 5. Cancel Download Modal
+document.getElementById('download-modal-cancel').addEventListener('click', async () => {
+    const startBtn = document.getElementById('download-modal-start');
+
+    // If the Start button is currently disabled, a download is actively running!
+    if (startBtn.disabled) {
+        document.getElementById('dl-file-name').innerText = "Cancelling and cleaning up files...";
+        document.getElementById('download-modal-cancel').disabled = true; // Prevent spam clicking
+
+        if (window.electronAPI && window.electronAPI.cancelDownload) {
+            await window.electronAPI.cancelDownload();
+        }
+    } else {
+        // Otherwise (hasn't started, or errored out), just close the modal cleanly
+        downloadOverlay.classList.remove('active');
+
+        // Reset the UI views in case it was showing a red error message
+        document.getElementById('download-dest-container').style.display = 'block';
+        document.getElementById('download-progress-container').style.display = 'none';
+    }
+});
+
+// --- RESTORED OPTIONS & CLICK-AWAY LOGIC ---
 document.getElementById('options-modal-cancel').addEventListener('click', () => {
     optionsOverlay.classList.remove('active');
 });
@@ -4303,9 +4652,14 @@ document.getElementById('options-modal-save').addEventListener('click', async ()
 });
 
 document.addEventListener('click', (e) => {
+    // 1. FREEZE ALL CLICK-AWAYS IF THE CONFIRM MODAL IS OPEN OR WAS JUST CLICKED
+    const confirmOverlay = document.getElementById('confirm-modal-overlay');
+    if (confirmOverlay && confirmOverlay.classList.contains('active')) return;
+    if (e.target.closest('#confirm-modal-overlay')) return; // Intercepts the bubbling click
+
     if (optionsOverlay.classList.contains('active')) {
         const optBox = optionsOverlay.querySelector('.modal-box');
-        if (!optBox.contains(e.target) && !optBox.contains(globalMousedownTarget) && !e.target.closest('#btn-options-bottom')) {
+        if (!optBox.contains(e.target) && !optBox.contains(globalMousedownTarget) && !e.target.closest('#btn-options-bottom') && !e.target.closest('#download-modal-overlay')) {
             optionsOverlay.classList.remove('active');
         }
     }
@@ -4314,6 +4668,18 @@ document.addEventListener('click', (e) => {
         const aboutBox = aboutOverlay.querySelector('.modal-box');
         if (!aboutBox.contains(e.target) && !aboutBox.contains(globalMousedownTarget) && !e.target.closest('#btn-about')) {
             aboutOverlay.classList.remove('active');
+        }
+    }
+
+    if (downloadOverlay.classList.contains('active')) {
+        const downBox = downloadOverlay.querySelector('.modal-box');
+        if (!downBox.contains(e.target) && !downBox.contains(globalMousedownTarget) && !e.target.closest('#btn-auto-download')) {
+            // Only allow clicking away to close if it's NOT actively downloading
+            if (document.getElementById('download-spinner') && document.getElementById('download-spinner').style.display === 'none') {
+                downloadOverlay.classList.remove('active');
+            } else if (document.getElementById('download-progress-container') && document.getElementById('download-progress-container').style.display === 'none') {
+                downloadOverlay.classList.remove('active');
+            }
         }
     }
 });

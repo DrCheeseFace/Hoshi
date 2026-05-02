@@ -16,6 +16,22 @@ if (header) {
 
 // --- 2. ELECTRON API MOCK ---
 window.electronAPI = {
+    getSystemProfile: async () => await invoke('get_system_profile'),
+    checkForUpdates: async () => await invoke('check_for_updates'),
+    chooseDownloadFolder: async () => await invoke('native_folder_dialog', { title: "Select Installation Folder" }),
+    getAppBaseDir: async () => await invoke('get_app_base_dir'),
+    resolveDestination: async (path) => await invoke('resolve_destination', { basePath: path }),
+    onDownloadProgress: (callback) => listen('download-progress', (e) => callback(e.payload)),
+    cancelDownload: async () => await invoke('cancel_download'),
+
+    downloadKataGo: async (folder, engineUrl, networkUrl) => {
+        return await invoke('download_katago', {
+            targetFolder: folder,
+            engineUrl: engineUrl,
+            networkUrl: networkUrl
+        });
+    },
+
     minimizeWindow: () => invoke('plugin:window|minimize'),
     maximizeWindow: () => invoke('plugin:window|toggle_maximize'),
     closeWindow: () => invoke('plugin:window|close'),
@@ -49,6 +65,8 @@ window.electronAPI = {
         }
     },
 
+    stopEngine: async () => await invoke('stop_katago'),
+
     chooseEngineFile: async (curr) => (await invoke('native_open_dialog', { title: "Select Engine", fName: "Executable", fExt: "exe" })) || curr,
     chooseNetworkFile: async (curr) => (await invoke('native_open_dialog', { title: "Select Model", fName: "Model", fExt: "bin.gz" })) || curr,
     chooseConfigFile: async (curr) => (await invoke('native_open_dialog', { title: "Select Config", fName: "Config", fExt: "cfg" })) || curr,
@@ -60,11 +78,16 @@ window.electronAPI = {
             try { callback([JSON.parse(e.payload)]); } catch (err) {}
         });
 
-        // This pipes KataGo's internal logs directly to console.
+        // Pipe KataGo's internal logs to the console AND to the UI for tuning
         listen('katago-stderr', (e) => {
             console.log("[KataGo Engine]:", e.payload);
-            if (e.payload.toLowerCase().includes('error') || e.payload.toLowerCase().includes('fatal')) {
+            const msg = e.payload.toLowerCase();
+
+            if (msg.includes('error') || msg.includes('fatal')) {
                 console.error("KataGo Fatal:", e.payload);
+            } else if (msg.includes('tuning') || msg.includes('testing') || msg.includes('initialized')) {
+                // Send background engine status updates to the UI
+                document.dispatchEvent(new CustomEvent('internal-katago-status', { detail: e.payload }));
             }
         });
 
