@@ -116,12 +116,22 @@ async fn native_folder_dialog(app: tauri::AppHandle, title: String) -> Result<Op
 // OS Detection, Download, and Extraction
 #[tauri::command]
 fn get_app_base_dir() -> String {
-    std::env::current_exe()
-        .unwrap_or_default()
-        .parent()
-        .unwrap_or_else(|| std::path::Path::new(""))
-        .to_string_lossy()
-        .to_string()
+    #[cfg(target_os = "windows")]
+    {
+        std::env::current_exe()
+            .unwrap_or_default()
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new(""))
+            .to_string_lossy()
+            .to_string()
+    }
+
+    #[cfg(target_family = "unix")]
+    {
+        // Safely point Mac and Linux to a hidden folder in the User's Home directory
+        let home = std::env::var("HOME").unwrap_or_else(|_| String::from("."));
+        format!("{}/.hoshi", home)
+    }
 }
 
 #[tauri::command]
