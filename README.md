@@ -15,7 +15,7 @@ A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 
 ## How to Download
 1. Go to the [Releases page](https://github.com/super-matako/Hoshi/releases/tag/v1.1.1).
-2. Simply download `Hoshi.exe` for Windows, `Hoshi.dmg` for Mac and `Hoshi.AppImage` for Linux.
+2. Simply download `Hoshi.exe`. Windows only for now.
 
 ## Keyboard Shortcuts
 
@@ -64,9 +64,6 @@ A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 ## v1.1.1
 ### Auto-setup feature
 No more bundling with a KataGo folder! If you don't already have KataGo, there is now a nifty `Auto-setup` button in the Options menu, allowing you to easily download the appropriate KataGo version for your system.
-
-### Cross-platform compatibility
-Versions for Mac and Linux are now live, in addition to Windows. They are still experimental and being developed into working order.
 
 ## v1.1.0
 ### Moved to Tauri
