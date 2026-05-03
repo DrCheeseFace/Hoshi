@@ -2,6 +2,7 @@
 
 use std::io::{BufRead, BufReader, Cursor, Write};
 use std::process::{Command, Stdio, Child};
+#[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::env::consts::{ARCH, OS};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -302,13 +303,24 @@ fn start_katago(window: Window, state: State<'_, AppState>, exe_path: String, ar
 
     let working_dir = exe_path_buf.parent().ok_or("Invalid path")?;
 
+    #[cfg(target_os = "windows")]
     let mut child = Command::new(clean_exe)
         .args(args)
-        .current_dir(working_dir) // Crucial for KataGo to find its weights
+        .current_dir(working_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .creation_flags(0x08000000)
+        .spawn()
+        .map_err(|e| format!("KataGo Spawn Error: {}", e))?;
+
+    #[cfg(not(target_os = "windows"))]
+    let mut child = Command::new(clean_exe)
+        .args(args)
+        .current_dir(working_dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("KataGo Spawn Error: {}", e))?;
 
