@@ -2,8 +2,7 @@
 
 A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 
-<img width="1736" height="1249" alt="Hoshi-Screenshot" src="https://github.com/user-attachments/assets/7ef0ec09-87d2-40cf-b88f-eacf38c32c20" />
-
+<img width="1920" height="1043" alt="Hoshi-Screenshot" src="https://github.com/user-attachments/assets/df65509d-bd64-4888-9163-1047c632d623" />
 
 ## Features
 * **Markup & Analysis:** Full suite of SGF markup tools, local KataGo evaluation bubbles, and score estimation graphs.
@@ -15,7 +14,7 @@ A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 
 ## How to Download
 1. Go to the [Releases page](https://github.com/super-matako/Hoshi/releases/tag/v1.1.1).
-2. Simply download `Hoshi.exe`. Windows only for now.
+2. Simply download `Hoshi.exe`.
 
 ## Keyboard Shortcuts
 
@@ -29,6 +28,8 @@ A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 * `Up Arrow` - Switch to the previous alternative variation
 * `Down Arrow` - Switch to the next alternative variation
 * `Shift` + `Up Arrow` - Warp backward directly to the primary branch intersection
+* `Scroll wheel` - Move in navigation tree (as long as the mouse is on the board)
+* `Mouse back` / `Mouse forward` - Switch between alternative variations
 
 ### Tools & Markup
 * `1` - Place Black stone
@@ -64,6 +65,12 @@ A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 ## v1.1.1
 ### Auto-setup feature
 No more bundling with a KataGo folder - if you don't already have KataGo, there is now a nifty `Auto-setup` button in the Options menu, allowing you to easily download the appropriate KataGo version for your system.
+
+### Wide-screen support
+Space is used to a better extent, depending on monitor size.
+
+### Hotkey editability
+You can now set your own hotkeys.
 
 ## v1.1.0
 ### Moved to Tauri
