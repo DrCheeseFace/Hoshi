@@ -394,7 +394,27 @@ let activeBubbles = new Set();
 let currentStoneHasScoreText = false;
 let textDrawQueue = []; // Queues text layers so they are strictly drawn over all other elements
 
-// Settings loaded/saved to the browser's localStorage
+const DEFAULT_HOTKEYS = {
+    // Tools
+    toolBlack: ['1', ''], toolWhite: ['2', ''], toolAlt: ['3', ''],
+    toolTri: ['q', ''], toolSq: ['w', ''], toolCirc: ['e', ''], toolCross: ['r', ''],
+    toolAlpha: ['a', ''], toolNum: ['s', ''], toolErase: ['z', ''], toolClear: ['', ''],
+    // Game Actions
+    actionScore: ['c', ''], actionPass: ['', ''], actionResign: ['', ''],
+    actionUndo: ['ctrl+z', ''], actionRedo: ['ctrl+y', ''], actionDelete: ['delete', 'backspace'],
+    toggleAnalysis: ['space', ''],
+    // File Actions
+    fileNew: ['ctrl+n', ''], fileOpen: ['ctrl+o', ''], fileSave: ['ctrl+s', ''], fileSaveAs: ['ctrl+shift+s', ''],
+    // Navigation
+    navStart: ['ctrl+arrowleft', 'home'],
+    navEnd: ['ctrl+arrowright', 'end'],
+    navBack: ['arrowleft', ''], navForward: ['arrowright', ''],
+    navBackFast: ['shift+arrowleft', 'pageup'],
+    navForwardFast: ['shift+arrowright', 'pagedown'],
+    navCyclePrev: ['arrowup', ''], navCycleNext: ['arrowdown', ''],
+    navDiveAlt: ['mouseback', ''], navEscapeMain: ['mouseforward', 'shift+arrowup']
+};
+
 const SETTINGS_KEY = 'hoshi_settings';
 let appSettings = {
     optCurrentMove: true,
@@ -403,17 +423,26 @@ let appSettings = {
     optAltNextMove: true,
     optCoordHighlight: true,
     optSaveConfirm: true,
+    optNewConfirm: true,
+    optDeleteConfirm: true,
     engineExe: './KataGo/katago.exe',
     engineNet: './KataGo/default_model.bin.gz',
-    engineCfg: './KataGo/analysis_example.cfg'
+    engineCfg: './KataGo/analysis_example.cfg',
+    hotkeys: JSON.parse(JSON.stringify(DEFAULT_HOTKEYS))
 };
 
 let savedConfig = localStorage.getItem(SETTINGS_KEY);
 if (savedConfig) {
-    appSettings = { ...appSettings, ...JSON.parse(savedConfig) };
+    let parsed = JSON.parse(savedConfig);
+    appSettings = { ...appSettings, ...parsed };
+    if (parsed.hotkeys) {
+        appSettings.hotkeys = { ...appSettings.hotkeys, ...parsed.hotkeys };
+    }
 }
 
 let skipSaveConfirm = !appSettings.optSaveConfirm;
+let skipNewConfirm = !appSettings.optNewConfirm;
+let skipDeleteConfirm = !appSettings.optDeleteConfirm;
 
 // ============================================================================
 // 6. RESPONSIVE RESIZE LOGIC
@@ -467,9 +496,23 @@ function resizeBoard() {
     drawAnalysisChart();
 
     // --- LAYOUT DETECTION ---
-    // Match the CSS media query logic exactly: Widescreen if > 1200px AND aspect ratio > 4:3
-    let isWidescreen = window.innerWidth >= 1450 && (window.innerWidth / window.innerHeight >= 1/1);
+    // Match the CSS media query logic exactly: Widescreen if >= 1450px AND aspect ratio >= 1:1
+    let isWidescreen = window.innerWidth >= 1450 && (window.innerWidth / window.innerHeight >= 1);
     let newOrientation = isWidescreen ? 'vertical' : 'horizontal';
+
+    // Move Game Info fields dynamically between the popover and the sidebar
+    const extraFields = document.getElementById('extra-info-fields');
+    const gameInfoPanel = document.querySelector('.sidebar > .panel:nth-child(1)');
+    const infoPopover = document.getElementById('info-popover');
+    const metadataHeader = document.getElementById('metadata-header');
+
+    if (extraFields && gameInfoPanel && infoPopover && metadataHeader) {
+        if (isWidescreen && extraFields.parentElement !== gameInfoPanel) {
+            gameInfoPanel.appendChild(extraFields);
+        } else if (!isWidescreen && extraFields.parentElement !== infoPopover) {
+            infoPopover.insertBefore(extraFields, metadataHeader);
+        }
+    }
 
     if (newOrientation !== treeOrientation) {
         treeOrientation = newOrientation;
@@ -1927,15 +1970,6 @@ function getNextColorToPlay() {
 // 10. MOUSE & KEYBOARD INTERACTION LOGIC
 // ============================================================================
 
-// Prevent Focus Stealing: Blurs any clicked button immediately so the Spacebar
-// hotkey doesn't accidentally trigger the button again.
-document.addEventListener('mouseup', (e) => {
-    let clickedButton = e.target.closest('button');
-    if (clickedButton) {
-        clickedButton.blur();
-    }
-});
-
 // Disable default browser right-click menu
 document.addEventListener('contextmenu', (e) => {
     // Prevent the default menu globally, UNLESS the user is right-clicking
@@ -2026,6 +2060,27 @@ function animateStonePickup(timestamp) {
     render();
     requestAnimationFrame(animateStonePickup);
 }
+
+// --- MOUSE WHEEL TREE NAVIGATION ---
+let wheelThrottle = false;
+
+canvas.addEventListener('wheel', (event) => {
+    // Prevent the entire webpage from scrolling when the mouse is over the board
+    event.preventDefault();
+
+    // Throttle the input to prevent trackpad hyper-scrolling
+    if (wheelThrottle) return;
+
+    wheelThrottle = true;
+    setTimeout(() => { wheelThrottle = false; }, 80);
+
+    // Scroll Down -> Go Forward, Scroll Up -> Go Back
+    if (event.deltaY > 0) {
+        traverseForward(1);
+    } else if (event.deltaY < 0) {
+        traverseBack(1);
+    }
+}, { passive: false }); // Strict requirement for preventDefault() on wheel events
 
 canvas.addEventListener('mousemove', (event) => {
     if (isShiftDown !== event.shiftKey) { isShiftDown = event.shiftKey; render(); }
@@ -2297,23 +2352,19 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
 // Analysis UI Toggles
 document.getElementById('toggle-bubbles').addEventListener('click', function() {
     showKataBubbles = !showKataBubbles;
-    if (showKataBubbles) {
-        this.classList.add('active-action');
-    } else {
-        this.classList.remove('active-action');
-    }
+    this.classList.toggle('active-action', showKataBubbles);
     render();
 });
 
-document.getElementById('toggle-score-graph').addEventListener('click', (e) => {
+document.getElementById('toggle-score-graph').addEventListener('click', function() {
     showScoreGraph = !showScoreGraph;
-    e.target.classList.toggle('active-action', showScoreGraph);
+    this.classList.toggle('active-action', showScoreGraph);
     drawAnalysisChart();
 });
 
-document.getElementById('toggle-wr-graph').addEventListener('click', (e) => {
+document.getElementById('toggle-wr-graph').addEventListener('click', function() {
     showWinrateGraph = !showWinrateGraph;
-    e.target.classList.toggle('active-action', showWinrateGraph);
+    this.classList.toggle('active-action', showWinrateGraph);
     drawAnalysisChart();
 });
 
@@ -2705,212 +2756,146 @@ function updateScorePopup() {
 // ============================================================================
 // 12. HOTKEY MANAGEMENT
 // ============================================================================
-document.addEventListener('keydown', (e) => {
-    // Prevent hotkeys from firing while the user is typing in text boxes
-    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
 
-    const key = e.key.toLowerCase();
-    const shift = e.shiftKey;
-    const ctrl = e.ctrlKey || e.metaKey;
+function getHotkeyString(e) {
+    if (['Control', 'Shift', 'Alt', 'Meta', 'Escape', 'Enter', 'Tab', 'CapsLock'].includes(e.key)) return null;
+    let str = '';
+    if (e.ctrlKey || e.metaKey) str += 'ctrl+';
+    if (e.shiftKey) str += 'shift+';
+    if (e.altKey) str += 'alt+';
+    str += (e.key === ' ' ? 'space' : e.key.toLowerCase());
+    return str;
+}
 
-    if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'pageup', 'pagedown', 'home', 'end'].includes(key)) {
-        e.preventDefault();
-    }
+function executeHotkey(keyStr) {
+    let hks = appSettings.hotkeys;
+    const isBound = (action) => hks[action] && (hks[action][0] === keyStr || hks[action][1] === keyStr);
 
-    // Spacebar: Toggle Analysis
-    if (key === ' ' && !shift) {
-        e.preventDefault();
+    // --- GAME ACTIONS ---
+    if (isBound('toggleAnalysis')) {
         isAnalysisPaused = !isAnalysisPaused;
-
-        if (!isAnalysisPaused) {
-            requestAnalysis();
-        } else {
-            if (currentQueryId && window.electronAPI) {
-                window.electronAPI.sendAnalysisQuery({
-                    id: "cancel_" + Date.now(),
-                    action: "terminate",
-                    terminateId: currentQueryId
-                });
-            }
-        }
-
+        if (!isAnalysisPaused) requestAnalysis();
+        else if (currentQueryId && window.electronAPI) window.electronAPI.sendAnalysisQuery({ id: "cancel_" + Date.now(), action: "terminate", terminateId: currentQueryId });
         updateAnalysisUI();
         render();
         drawAnalysisChart();
-        return;
+        return true;
     }
-
-    // Tool Hotkeys
-    if (key === '1') setTool('black');
-    if (key === '2') setTool('white');
-    if (key === '3') setTool('alternate');
-    if (key === 'q') setTool('mark_tri');
-    if (key === 'w') setTool('mark_sq');
-    if (key === 'e') setTool('mark_o');
-    if (key === 'r') setTool('mark_x');
-
-    if (key === 'a') {
+    if (isBound('actionScore')) { document.getElementById('btn-score').click(); return true; }
+    if (isBound('actionPass')) { document.getElementById('btn-pass').click(); return true; }
+    if (isBound('actionResign')) { document.getElementById('btn-resign').click(); return true; }
+    if (isBound('actionUndo')) { if (!isEditModeActive) performUndo(); return true; }
+    if (isBound('actionRedo')) { if (!isEditModeActive) performRedo(); return true; }
+    if (isBound('actionDelete')) {
+        if (currentNode !== rootNode && !document.querySelector('.modal-overlay.active')) {
+            requestDeleteNode(currentNode);
+        }
+        return true;
+    }
+    // --- TOOLS ---
+    if (isBound('toolBlack')) { setTool('black'); return true; }
+    if (isBound('toolWhite')) { setTool('white'); return true; }
+    if (isBound('toolAlt')) { setTool('alternate'); return true; }
+    if (isBound('toolTri')) { setTool('mark_tri'); return true; }
+    if (isBound('toolSq')) { setTool('mark_sq'); return true; }
+    if (isBound('toolCirc')) { setTool('mark_o'); return true; }
+    if (isBound('toolCross')) { setTool('mark_x'); return true; }
+    if (isBound('toolAlpha')) {
         if (currentMode === 'mark_alpha') {
             letterCase = letterCase === 'lower' ? 'upper' : 'lower';
             document.getElementById('btn-alpha').classList.toggle('is-upper', letterCase === 'upper');
         }
         setTool('mark_alpha');
+        return true;
     }
-
-    if (key === 's') setTool('mark_num');
-    if (key === 'z' && !ctrl) setTool('erase');
-
-    if (key === 'c' && !ctrl && !shift) {
-        document.getElementById('btn-score').click();
-    }
-
-    // File Operation Hotkeys
-    if (ctrl) {
-        if (key === 'n') {
-            e.preventDefault();
-            document.getElementById('btn-new').click();
-        }
-        if (key === 'o') {
-            e.preventDefault();
-            document.getElementById('btn-open').click();
-        }
-        if (key === 's') {
-            e.preventDefault();
-            if (shift) {
-                document.getElementById('btn-save-as').click();
-            } else {
-                document.getElementById('btn-save').click();
-            }
-        }
-    }
-
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (currentNode !== rootNode && !optionsOverlay.classList.contains('active')) {
-            let fakeAnchor = null;
-
-            // 1. Get the node's exact pixel position from the tree layout
-            const pos = treeLayout.get(currentNode);
-            const container = document.getElementById('tree-container');
-
-            if (pos && container) {
-                let p = getTreePx(pos);
-
-                // 2. Adjust for container scrolling to get the absolute screen coordinates
-                const rect = container.getBoundingClientRect();
-                const screenX = rect.left + p.x - container.scrollLeft;
-                const screenY = rect.top + p.y - container.scrollTop;
-
-                // 3. Create a fake DOM element so showConfirmModal can measure its bounding box
-                fakeAnchor = {
-                    getBoundingClientRect: () => ({
-                        top: screenY - TREE_RADIUS,
-                        left: screenX - TREE_RADIUS,
-                        bottom: screenY + TREE_RADIUS,
-                        right: screenX + TREE_RADIUS,
-                        width: TREE_RADIUS * 2,
-                        height: TREE_RADIUS * 2
-                    })
-                };
-            }
-
-            showConfirmModal(
-                "Delete Node",
-                "Permanently remove this move and all its variations?",
-                "Delete",
-                fakeAnchor, // Anchor above the hovered tree node
-                () => deleteNode(currentNode)
-            );
-        }
-        return;
-    }
-
-    if (ctrl && key === 'z') {
-        // 1. If holding a stone, cancel the pickup
-        if (isEditModeActive) {
-            isEditModeActive = false;
-            nodeBeingEdited = null;
-            isStoneAnimating = false;
-            isStoneHoveringInPlace = false;
-            rawMousePos = null;
-            syncAndRender();
-            return;
-        }
-
-        // 2. Trigger global Undo
-        performUndo();
-    }
-
-    if (ctrl && key === 'y') {
-        if (isEditModeActive) return; // Prevent redo while actively dragging a stone
-        performRedo();
-    }
-
-    // Tree Navigation Hotkeys (Orientation Aware)
-    let navBackKey = treeOrientation === 'vertical' ? 'arrowup' : 'arrowleft';
-    let navForwardKey = treeOrientation === 'vertical' ? 'arrowdown' : 'arrowright';
-    let cyclePrevKey = treeOrientation === 'vertical' ? 'arrowleft' : 'arrowup';
-    let cycleNextKey = treeOrientation === 'vertical' ? 'arrowright' : 'arrowdown';
-
-    if (key === navBackKey) {
-        if (ctrl) {
-            currentNode = rootNode;
-            syncAndRender();
-        } else if (shift) {
-            traverseBack(15);
-        } else {
-            traverseBack(1);
-        }
-    }
-
-    if (key === navForwardKey) {
-        if (ctrl) {
-            while(currentNode.children.length > 0) currentNode = currentNode.children[0];
-            syncAndRender();
-        } else if (shift) {
-            traverseForward(15);
-        } else {
-            traverseForward(1);
-        }
-    }
-
-    if (key === 'pageup') traverseBack(15);
-    if (key === 'pagedown') traverseForward(15);
-
-    if (key === 'home') {
-        currentNode = rootNode;
-        syncAndRender();
-    }
-
-    if (key === 'end') {
-        while(currentNode.children.length > 0) currentNode = currentNode.children[0];
-        syncAndRender();
-    }
-
-    if (key === cyclePrevKey || key === cycleNextKey) {
-        if (key === cyclePrevKey && shift) {
-            // Warp back up to the primary branch intersection
-            let temp = currentNode;
-            while (temp && temp.parent) {
-                if (temp.parent.children[0] !== temp) {
-                    currentNode = temp.parent.children[0];
-                    syncAndRender();
-                    break;
-                }
-                temp = temp.parent;
-            }
-        } else if (currentNode.parent && currentNode.parent.children.length > 1) {
-            // Cycle through alternative realities/variations
+    if (isBound('toolNum')) { setTool('mark_num'); return true; }
+    if (isBound('toolErase')) { setTool('erase'); return true; }
+    if (isBound('toolClear')) { document.getElementById('btn-clear-markup').click(); return true; }
+    // --- FILE ---
+    if (isBound('fileNew')) { document.getElementById('btn-new').click(); return true; }
+    if (isBound('fileOpen')) { document.getElementById('btn-open').click(); return true; }
+    if (isBound('fileSave')) { document.getElementById('btn-save').click(); return true; }
+    if (isBound('fileSaveAs')) { document.getElementById('btn-save-as').click(); return true; }
+    // --- NAVIGATION ---
+    if (isBound('navStart')) { currentNode = rootNode; syncAndRender(); return true; }
+    if (isBound('navEnd')) { while(currentNode.children.length > 0) currentNode = currentNode.children[0]; syncAndRender(); return true; }
+    if (isBound('navBack')) { traverseBack(1); return true; }
+    if (isBound('navForward')) { traverseForward(1); return true; }
+    if (isBound('navBackFast')) { traverseBack(15); return true; }
+    if (isBound('navForwardFast')) { traverseForward(15); return true; }
+    if (isBound('navCyclePrev')) {
+        if (currentNode.parent && currentNode.parent.children.length > 1) {
             const siblings = currentNode.parent.children;
             const currentIndex = siblings.indexOf(currentNode);
-
-            if (key === cyclePrevKey && currentIndex > 0) {
-                currentNode = siblings[currentIndex - 1];
-                syncAndRender();
-            } else if (key === cycleNextKey && currentIndex < siblings.length - 1) {
-                currentNode = siblings[currentIndex + 1];
-                syncAndRender();
-            }
+            if (currentIndex > 0) { currentNode = siblings[currentIndex - 1]; syncAndRender(); }
         }
+        return true;
+    }
+    if (isBound('navCycleNext')) {
+        if (currentNode.parent && currentNode.parent.children.length > 1) {
+            const siblings = currentNode.parent.children;
+            const currentIndex = siblings.indexOf(currentNode);
+            if (currentIndex < siblings.length - 1) { currentNode = siblings[currentIndex + 1]; syncAndRender(); }
+        }
+        return true;
+    }
+    if (isBound('navDiveAlt')) {
+        if (currentNode.parent && currentNode.parent.children.length > 1) {
+            const siblings = currentNode.parent.children;
+            const currentIndex = siblings.indexOf(currentNode);
+            if (currentIndex < siblings.length - 1) { currentNode = siblings[currentIndex + 1]; syncAndRender(); }
+        }
+        return true;
+    }
+    if (isBound('navEscapeMain')) {
+        let temp = currentNode;
+        while (temp && temp.parent) {
+            if (temp.parent.children[0] !== temp) {
+                currentNode = temp.parent.children[0];
+                syncAndRender();
+                break;
+            }
+            temp = temp.parent;
+        }
+        return true;
+    }
+
+    return false;
+}
+
+// Master Keyboard Listener
+document.addEventListener('keydown', (e) => {
+    // Suspend normal hotkeys if ANY modal (Options, Confirm, About, etc.) is open!
+    if (document.querySelector('.modal-overlay.active')) return;
+    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+    let keyStr = getHotkeyString(e);
+    if (!keyStr) return;
+    if (executeHotkey(keyStr)) e.preventDefault();
+});
+
+// Master Mouse/Tracker Listener
+document.addEventListener('mousedown', (e) => {
+    // Always prevent browser history navigation on thumb buttons
+    if (e.button === 3 || e.button === 4) e.preventDefault();
+
+    // Suspend normal hotkeys if ANY modal (Options, Confirm, About, etc.) is open!
+    if (document.querySelector('.modal-overlay.active')) return;
+    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+    let btnStr = '';
+    if (e.button === 1) btnStr = 'middleclick';
+    if (e.button === 3) btnStr = 'mouseback';
+    if (e.button === 4) btnStr = 'mouseforward';
+
+    if (btnStr) {
+        let keyStr = '';
+        if (e.ctrlKey || e.metaKey) keyStr += 'ctrl+';
+        if (e.shiftKey) keyStr += 'shift+';
+        if (e.altKey) keyStr += 'alt+';
+        keyStr += btnStr;
+
+        if (executeHotkey(keyStr)) e.preventDefault();
     }
 });
 
@@ -3047,7 +3032,11 @@ treeCanvas.addEventListener('contextmenu', (event) => {
     }
 });
 
-document.getElementById('ctx-delete').addEventListener('click', () => { if (nodeTargetedByContext) deleteNode(nodeTargetedByContext); });
+document.getElementById('ctx-delete').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (nodeTargetedByContext) requestDeleteNode(nodeTargetedByContext);
+});
+
 document.getElementById('ctx-make-main').addEventListener('click', () => {
     if (nodeTargetedByContext && nodeTargetedByContext.parent) {
         let tempNode = nodeTargetedByContext;
@@ -3078,14 +3067,12 @@ document.getElementById('ctx-edit-node').addEventListener('click', (e) => {
         isEditModeActive = true;
         nodeBeingEdited = nodeTargetedByContext;
 
-        // Calculate exact mouse position instantly
         const rect = canvas.getBoundingClientRect();
         rawMousePos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
         stoneAnimStartX = MARGIN_X + (nodeTargetedByContext.x * CELL_WIDTH);
         stoneAnimStartY = MARGIN_Y + (nodeTargetedByContext.y * CELL_HEIGHT);
 
-        // Check if cursor is inside the board
         if (rawMousePos.x >= 0 && rawMousePos.x <= canvas.clientWidth &&
             rawMousePos.y >= 0 && rawMousePos.y <= canvas.clientHeight) {
             isStoneHoveringInPlace = false;
@@ -3096,11 +3083,8 @@ document.getElementById('ctx-edit-node').addEventListener('click', (e) => {
             isStoneAnimating = false;
         }
 
-        // Always start the engine, even if just hovering
         requestAnimationFrame(animateStonePickup);
-
         syncAndRender();
-
         contextMenu.style.display = 'none';
     }
 });
@@ -3118,7 +3102,7 @@ document.addEventListener('keydown', (e) => {
 let nodeTargetedByBoard = null;
 
 canvas.addEventListener('contextmenu', (event) => {
-    if (isEditModeActive) return; // Prevent menu while actively editing
+    if (isEditModeActive) return;
 
     event.preventDefault();
     const rect = canvas.getBoundingClientRect();
@@ -3134,7 +3118,6 @@ canvas.addEventListener('contextmenu', (event) => {
         const stoneColor = boardState[gridX][gridY];
 
         if (stoneColor) {
-            // Walk backward through the current timeline to find the node that placed this exact stone
             let temp = currentNode;
             while (temp !== null && temp !== rootNode) {
                 if (temp.x === gridX && temp.y === gridY && temp.color === stoneColor) {
@@ -3152,7 +3135,6 @@ canvas.addEventListener('contextmenu', (event) => {
                 let posX = event.pageX;
                 let posY = event.pageY;
 
-                // Prevent bleeding off-screen
                 if (posX + menuWidth > window.innerWidth) posX = event.pageX - menuWidth;
                 if (posY + menuHeight > window.innerHeight) posY = window.innerHeight - menuHeight;
 
@@ -3163,11 +3145,9 @@ canvas.addEventListener('contextmenu', (event) => {
     }
 });
 
-// Board Menu Actions
 document.getElementById('ctx-board-travel').addEventListener('click', (e) => {
     e.stopPropagation();
     boardContextMenu.style.display = 'none';
-
     if (nodeTargetedByBoard) {
         currentNode = nodeTargetedByBoard;
         syncAndRender();
@@ -3182,14 +3162,12 @@ document.getElementById('ctx-board-edit').addEventListener('click', (e) => {
         isEditModeActive = true;
         nodeBeingEdited = nodeTargetedByBoard;
 
-        // Calculate exact mouse position instantly
         const rect = canvas.getBoundingClientRect();
         rawMousePos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
         stoneAnimStartX = MARGIN_X + (nodeTargetedByBoard.x * CELL_WIDTH);
         stoneAnimStartY = MARGIN_Y + (nodeTargetedByBoard.y * CELL_HEIGHT);
 
-        // Check if cursor is inside the board
         if (rawMousePos.x >= 0 && rawMousePos.x <= canvas.clientWidth &&
             rawMousePos.y >= 0 && rawMousePos.y <= canvas.clientHeight) {
             isStoneHoveringInPlace = false;
@@ -3200,9 +3178,7 @@ document.getElementById('ctx-board-edit').addEventListener('click', (e) => {
             isStoneAnimating = false;
         }
 
-        // Always start the engine, even if just hovering
         requestAnimationFrame(animateStonePickup);
-
         syncAndRender();
     }
 });
@@ -3210,22 +3186,44 @@ document.getElementById('ctx-board-edit').addEventListener('click', (e) => {
 document.getElementById('ctx-board-delete').addEventListener('click', (e) => {
     e.stopPropagation();
     boardContextMenu.style.display = 'none';
-
-    if (nodeTargetedByBoard) {
-        if (nodeTargetedByBoard.children.length > 0) {
-            showConfirmModal(
-                "Delete Stone",
-                "Deleting this stone will delete the moves that came after it in the game tree. Are you sure?",
-                "Delete",
-                null, // Centers the modal
-                () => deleteNode(nodeTargetedByBoard)
-            );
-        } else {
-            // No children, just delete it immediately without nagging
-            deleteNode(nodeTargetedByBoard);
-        }
-    }
+    if (nodeTargetedByBoard) requestDeleteNode(nodeTargetedByBoard);
 });
+
+// Universal delete interceptor handles the confirmation and checkbox routing
+function requestDeleteNode(targetNode) {
+    if (targetNode === rootNode) return;
+
+    if (skipDeleteConfirm) {
+        deleteNode(targetNode);
+    } else {
+        let warningText = targetNode.children.length > 0
+            ? "Permanently remove this move and all its variations?"
+            : "Permanently remove this move?";
+
+        showConfirmModal(
+            "Delete Node",
+            warningText,
+            "Delete",
+            null, // null forces the modal to center on the screen
+            (dontShowAgain) => {
+                if (dontShowAgain) {
+                    skipDeleteConfirm = true;
+                    appSettings.optDeleteConfirm = false;
+                    localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
+
+                    let optCheckbox = document.getElementById('opt-delete-confirm');
+                    if (optCheckbox) optCheckbox.checked = false;
+                }
+                deleteNode(targetNode);
+            },
+            true // Show "Don't show again" checkbox
+        );
+    }
+
+    // Ensure context menus close if they triggered this
+    contextMenu.style.display = 'none';
+    boardContextMenu.style.display = 'none';
+}
 
 function deleteNode(targetNode) {
     if (targetNode === rootNode) return;
@@ -4168,6 +4166,165 @@ document.getElementById('btn-save-as').addEventListener('click', (e) => {
 // ============================================================================
 const optionsOverlay = document.getElementById('options-modal-overlay');
 
+// --- HOTKEY SUB-MENU LOGIC ---
+const hotkeysOverlay = document.getElementById('hotkeys-modal-overlay');
+let tempHotkeys = {};
+let activeHotkeyInput = null; // Tracks which input is currently "listening"
+
+function formatKeyDisplay(str) {
+    if (!str) return '';
+    const naming = { 'arrowleft':'Left', 'arrowright':'Right', 'arrowup':'Up', 'arrowdown':'Down', 'space':'Space', 'mouseback':'Mouse Back', 'mouseforward':'Mouse Forward', 'middleclick':'Middle Click' };
+    return str.split('+').map(s => {
+        let mapped = naming[s] || s;
+        return mapped.charAt(0).toUpperCase() + mapped.slice(1);
+    }).join(' + ');
+}
+
+const hkLayout = [
+    { title: "Game Navigation", items: [
+        { id: 'navForward', label: 'Move Forward' }, { id: 'navBack', label: 'Move Back' },
+        { id: 'navForwardFast', label: 'Fast Forward (15)' }, { id: 'navBackFast', label: 'Fast Back (15)' },
+        { id: 'navEnd', label: 'Jump to End' }, { id: 'navStart', label: 'Jump to Start' },
+        { id: 'navCycleNext', label: 'Cycle Var (Down)' }, { id: 'navCyclePrev', label: 'Cycle Var (Up)' },
+        { id: 'navDiveAlt', label: 'Step Into Variation' }, { id: 'navEscapeMain', label: 'Escape to Main Line' }
+    ]},
+    { title: "Placement Tools", items: [
+        { id: 'toolBlack', label: 'Black Stone' }, { id: 'toolWhite', label: 'White Stone' }, { id: 'toolAlt', label: 'Alternate Color' },
+        { id: 'toolTri', label: 'Triangle' }, { id: 'toolSq', label: 'Square' }, { id: 'toolCirc', label: 'Circle' }, { id: 'toolCross', label: 'Cross' },
+        { id: 'toolAlpha', label: 'Letter (a/A)' }, { id: 'toolNum', label: 'Number (1,2,3)' },
+        { id: 'toolErase', label: 'Eraser' }, { id: 'toolClear', label: 'Clear All Markup' }
+    ]},
+    { title: "Game Actions", items: [
+        { id: 'toggleAnalysis', label: 'Toggle KataGo' }, { id: 'actionScore', label: 'Estimate Score' },
+        { id: 'actionPass', label: 'Pass' }, { id: 'actionResign', label: 'Resign' },
+        { id: 'actionUndo', label: 'Undo Action' }, { id: 'actionRedo', label: 'Redo Action' },
+        { id: 'actionDelete', label: 'Delete Move/Node' }
+    ]},
+    { title: "File Operations", items: [
+        { id: 'fileNew', label: 'New Game' }, { id: 'fileOpen', label: 'Open Game' },
+        { id: 'fileSave', label: 'Save' }, { id: 'fileSaveAs', label: 'Save As' }
+    ]}
+];
+
+function renderHotkeyUI() {
+    const container = document.getElementById('hotkey-list-container');
+    let fullHtml = '';
+
+    hkLayout.forEach(group => {
+        fullHtml += `<div class="options-section" style="margin-bottom:0; padding:10px;"><h4 class="options-heading">${group.title}</h4>`;
+        fullHtml += `<div style="display: grid; grid-template-columns: 1fr auto auto; gap: 4px; align-items: center;">`;
+
+        group.items.forEach(item => {
+            let slot1 = tempHotkeys[item.id][0] || '';
+            let slot2 = tempHotkeys[item.id][1] || '';
+
+            fullHtml += `
+                <div style="font-size: 0.85rem; color: var(--text-main);">${item.label}</div>
+                <input type="text" class="info-input hk-input" data-hk="${item.id}" data-slot="0" value="${formatKeyDisplay(slot1)}" style="background: var(--input-bg); width: 130px; text-align: center; cursor: pointer; border: 1.5px solid transparent; outline: none; transition: border-color 0.15s;" readonly placeholder="Unbound">
+                <input type="text" class="info-input hk-input" data-hk="${item.id}" data-slot="1" value="${formatKeyDisplay(slot2)}" style="background: var(--input-bg); width: 130px; text-align: center; cursor: pointer; border: 1.5px solid transparent; outline: none; transition: border-color 0.15s;" readonly placeholder="Unbound">
+            `;
+        });
+        fullHtml += `</div></div>`;
+    });
+    container.innerHTML = fullHtml;
+}
+
+document.getElementById('btn-open-hotkeys').addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    tempHotkeys = JSON.parse(JSON.stringify(appSettings.hotkeys));
+    renderHotkeyUI();
+    hotkeysOverlay.classList.add('active');
+});
+
+function clearActiveHotkeyInput() {
+    if (activeHotkeyInput) {
+        activeHotkeyInput.style.borderColor = 'transparent';
+        activeHotkeyInput.blur();
+        activeHotkeyInput = null;
+        renderHotkeyUI(); // Reset any "Press key..." text back to proper binding display
+    }
+}
+
+// Global Keydown for binding keys (using capture to intercept everything)
+document.addEventListener('keydown', (e) => {
+    if (!hotkeysOverlay.classList.contains('active') || !activeHotkeyInput) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+        tempHotkeys[activeHotkeyInput.dataset.hk][activeHotkeyInput.dataset.slot] = '';
+    } else {
+        let keyStr = getHotkeyString(e);
+        if (!keyStr) return; // Wait until a non-modifier is pressed
+        tempHotkeys[activeHotkeyInput.dataset.hk][activeHotkeyInput.dataset.slot] = keyStr;
+    }
+
+    clearActiveHotkeyInput();
+}, { capture: true });
+
+// Global Mousedown for binding mouse buttons
+document.addEventListener('mousedown', (e) => {
+    if (!hotkeysOverlay.classList.contains('active')) return;
+
+    // If a box is currently "armed" and waiting for input...
+    if (activeHotkeyInput) {
+        // If it's a left-click (0) or right-click (2), they are trying to click away or cancel
+        if (e.button === 0 || e.button === 2) {
+            if (e.target !== activeHotkeyInput) {
+                clearActiveHotkeyInput();
+            }
+        } else {
+            // It's a bindable mouse button (1 = middle, 3 = back, 4 = forward)!
+            e.preventDefault();
+            e.stopPropagation();
+
+            let btnStr = e.button === 1 ? 'middleclick' : (e.button === 3 ? 'mouseback' : 'mouseforward');
+            let keyStr = '';
+            if (e.ctrlKey || e.metaKey) keyStr += 'ctrl+';
+            if (e.shiftKey) keyStr += 'shift+';
+            if (e.altKey) keyStr += 'alt+';
+            keyStr += btnStr;
+
+            // Bind it to the ACTIVE input, regardless of where the mouse is physically hovering
+            activeHotkeyInput.dataset.raw = keyStr;
+            tempHotkeys[activeHotkeyInput.dataset.hk][activeHotkeyInput.dataset.slot] = keyStr;
+            clearActiveHotkeyInput();
+            return; // Stop here so we don't trigger the code below
+        }
+    }
+
+    // Standard logic for left-clicking a box to arm it
+    if (e.target.classList.contains('hk-input') && e.button === 0) {
+        e.preventDefault();
+        clearActiveHotkeyInput();
+        activeHotkeyInput = e.target;
+        activeHotkeyInput.value = "Press key...";
+        activeHotkeyInput.style.borderColor = "var(--accent)";
+    }
+}, { capture: true });
+
+// Menu Buttons
+document.getElementById('hotkeys-modal-reset').addEventListener('click', (e) => {
+    e.stopPropagation();
+    tempHotkeys = JSON.parse(JSON.stringify(DEFAULT_HOTKEYS));
+    renderHotkeyUI();
+});
+
+document.getElementById('hotkeys-modal-cancel').addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearActiveHotkeyInput();
+    hotkeysOverlay.classList.remove('active');
+});
+
+document.getElementById('hotkeys-modal-save').addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearActiveHotkeyInput();
+    appSettings.hotkeys = JSON.parse(JSON.stringify(tempHotkeys));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
+    hotkeysOverlay.classList.remove('active');
+});
+
 const aboutOverlay = document.getElementById('about-modal-overlay');
 
 document.getElementById('btn-about').addEventListener('click', (e) => {
@@ -4223,6 +4380,8 @@ document.getElementById('btn-options-bottom').addEventListener('click', (e) => {
     document.getElementById('opt-alt-move').checked = appSettings.optAltMove;
     document.getElementById('opt-alt-next-move').checked = appSettings.optAltNextMove;
     document.getElementById('opt-save-confirm').checked = appSettings.optSaveConfirm;
+    document.getElementById('opt-new-confirm').checked = appSettings.optNewConfirm;
+    document.getElementById('opt-delete-confirm').checked = appSettings.optDeleteConfirm;
 
     document.getElementById('opt-engine-exe').value = appSettings.engineExe;
     document.getElementById('opt-engine-network').value = appSettings.engineNet;
@@ -4481,10 +4640,10 @@ async function startDownloadProcess(targetFolder) {
 
 // 5. Cancel Download Modal
 document.getElementById('download-modal-cancel').addEventListener('click', async () => {
-    const startBtn = document.getElementById('download-modal-start');
+    const progContainer = document.getElementById('download-progress-container');
 
-    // If the Start button is currently disabled, a download is actively running!
-    if (startBtn.disabled) {
+    // If the progress container is visible, a download is actively running!
+    if (progContainer.style.display === 'block') {
         document.getElementById('dl-file-name').innerText = "Cancelling and cleaning up files...";
         document.getElementById('download-modal-cancel').disabled = true; // Prevent spam clicking
 
@@ -4492,10 +4651,10 @@ document.getElementById('download-modal-cancel').addEventListener('click', async
             await window.electronAPI.cancelDownload();
         }
     } else {
-        // Otherwise (hasn't started, or errored out), just close the modal cleanly
+        // Otherwise (hasn't started, still querying hardware, or errored out), just close the modal cleanly
         downloadOverlay.classList.remove('active');
 
-        // Reset the UI views in case it was showing a red error message
+        // Reset the UI views
         document.getElementById('download-dest-container').style.display = 'block';
         document.getElementById('download-progress-container').style.display = 'none';
     }
@@ -4514,6 +4673,8 @@ document.getElementById('options-modal-save').addEventListener('click', async ()
     appSettings.optAltMove = document.getElementById('opt-alt-move').checked;
     appSettings.optAltNextMove = document.getElementById('opt-alt-next-move').checked;
     appSettings.optSaveConfirm = document.getElementById('opt-save-confirm').checked;
+    appSettings.optNewConfirm = document.getElementById('opt-new-confirm').checked;
+    appSettings.optDeleteConfirm = document.getElementById('opt-delete-confirm').checked;
 
     appSettings.engineExe = document.getElementById('opt-engine-exe').value.trim();
     appSettings.engineNet = document.getElementById('opt-engine-network').value.trim();
@@ -4521,6 +4682,8 @@ document.getElementById('options-modal-save').addEventListener('click', async ()
 
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
     skipSaveConfirm = !appSettings.optSaveConfirm;
+    skipNewConfirm = !appSettings.optNewConfirm;
+    skipDeleteConfirm = !appSettings.optDeleteConfirm;
 
     // 2. Unconditionally close the modal immediately
     optionsOverlay.classList.remove('active');
@@ -4555,7 +4718,7 @@ document.addEventListener('click', (e) => {
     if (confirmOverlay && confirmOverlay.classList.contains('active')) return;
     if (e.target.closest('#confirm-modal-overlay')) return; // Intercepts the bubbling click
 
-    if (optionsOverlay.classList.contains('active')) {
+    if (optionsOverlay.classList.contains('active') && !hotkeysOverlay.classList.contains('active')) {
         const optBox = optionsOverlay.querySelector('.modal-box');
         if (!optBox.contains(e.target) && !optBox.contains(globalMousedownTarget) && !e.target.closest('#btn-options-bottom') && !e.target.closest('#download-modal-overlay')) {
             optionsOverlay.classList.remove('active');
@@ -4612,57 +4775,73 @@ document.getElementById('btn-new').addEventListener('click', (e) => {
 
     if (checkIsGameBlank()) return;
 
-    showConfirmModal(
-        "New Game",
-        "Are you sure you want to start a new game? Any unsaved changes will be lost.",
-        "New Game",
-        e.target.closest('.split-btn-group'),
-        () => {
-            boardState = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null));
-            nextAlternatingColor = 'black';
-            rootNode = new GameNode(null, null, null, null, boardState);
-            currentNode = rootNode;
+    const executeNewGame = () => {
+        boardState = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(null));
+        nextAlternatingColor = 'black';
+        rootNode = new GameNode(null, null, null, null, boardState);
+        currentNode = rootNode;
 
-            document.getElementById('player-b-name').value = "";
-            document.getElementById('player-b-rank').value = "";
-            document.getElementById('player-w-name').value = "";
-            document.getElementById('player-w-rank').value = "";
-            document.querySelector('.game-title-input').value = "";
-            document.getElementById('info-date').value = "";
-            document.getElementById('info-place').value = "";
-            document.getElementById('info-event').value = "";
-            document.getElementById('info-round').value = "";
-            document.getElementById('info-rules').value = "";
-            document.getElementById('info-time').value = "";
-            document.getElementById('info-overtime').value = "";
-            document.getElementById('info-komi').value = "6.5";
-            document.getElementById('result-input').value = "";
-            document.getElementById('reveal-result-btn').style.display = 'none';
-            document.getElementById('info-summary').value = "";
-            document.getElementById('info-annotator').value = "";
-            document.getElementById('info-copyright').value = "";
+        document.getElementById('player-b-name').value = "";
+        document.getElementById('player-b-rank').value = "";
+        document.getElementById('player-w-name').value = "";
+        document.getElementById('player-w-rank').value = "";
+        document.querySelector('.game-title-input').value = "";
+        document.getElementById('info-date').value = "";
+        document.getElementById('info-place').value = "";
+        document.getElementById('info-event').value = "";
+        document.getElementById('info-round').value = "";
+        document.getElementById('info-rules').value = "";
+        document.getElementById('info-time').value = "";
+        document.getElementById('info-overtime').value = "";
+        document.getElementById('info-komi').value = "6.5";
+        document.getElementById('result-input').value = "";
+        document.getElementById('reveal-result-btn').style.display = 'none';
+        document.getElementById('info-summary').value = "";
+        document.getElementById('info-annotator').value = "";
+        document.getElementById('info-copyright').value = "";
 
-            currentRules = 'japanese';
-            currentKomi = 6.5;
-            originalGameResult = "";
-            isFileLinked = false;
+        currentRules = 'japanese';
+        currentKomi = 6.5;
+        originalGameResult = "";
+        isFileLinked = false;
 
-            if (window.electronAPI && window.electronAPI.resetFilePath) {
-                window.electronAPI.resetFilePath();
-            }
+        if (window.electronAPI && window.electronAPI.resetFilePath) {
+            window.electronAPI.resetFilePath();
+        }
 
-            isAnalysisPaused = true;
-            currentAnalysisPhase = 1;
-            currentAnalysisLineStr = "";
-            if (currentQueryId && window.electronAPI) {
-                window.electronAPI.sendAnalysisQuery({ id: "cancel_" + Date.now(), action: "terminate", terminateId: currentQueryId });
-            }
+        isAnalysisPaused = true;
+        currentAnalysisPhase = 1;
+        currentAnalysisLineStr = "";
+        if (currentQueryId && window.electronAPI) {
+            window.electronAPI.sendAnalysisQuery({ id: "cancel_" + Date.now(), action: "terminate", terminateId: currentQueryId });
+        }
 
-            syncAndRender();
-        },
-        false,
-        -25
-    );
+        syncAndRender();
+    };
+
+    if (skipNewConfirm) {
+        executeNewGame();
+    } else {
+        showConfirmModal(
+            "New Game",
+            "Are you sure you want to start a new game? Any unsaved changes will be lost.",
+            "New Game",
+            e.target.closest('.split-btn-group'),
+            (dontShowAgain) => {
+                if (dontShowAgain) {
+                    skipNewConfirm = true;
+                    appSettings.optNewConfirm = false;
+                    localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
+
+                    let optCheckbox = document.getElementById('opt-new-confirm');
+                    if (optCheckbox) optCheckbox.checked = false;
+                }
+                executeNewGame();
+            },
+            true, // Tells the modal to show the "Don't show again" checkbox
+            -25   // Optional X-offset to center it nicely
+        );
+    }
 });
 
 setTool('alternate');

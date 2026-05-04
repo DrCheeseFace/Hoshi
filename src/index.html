@@ -174,8 +174,8 @@
         .tree-nav { display: flex; flex-wrap: nowrap; gap: 4px; margin-bottom: 4px; width: 100%; }
         .tree-nav button { flex: 1; padding: 4px 0; font-size: 0.9rem; border: 1.5px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); border-radius: 4px; cursor: pointer; font-family: 'ZCOOL QingKe HuangYou', sans-serif; font-weight: 400; transition: all 0.1s; }
         .tree-nav button:hover { background: var(--border-color); }
-        .game-tree { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 85px; }
-        .tree-container { flex: 1; overflow: auto; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); position: relative; cursor: grab; }
+        .game-tree { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 175px; }
+        .tree-container { flex: 1; overflow: auto; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); position: relative; cursor: grab; min-height: 110px; flex-shrink: 0; }
         .tree-container:active { cursor: grabbing; }
         #tree-canvas { display: block; }
 
@@ -273,14 +273,17 @@
         #confirm-modal-overlay { z-index: 5000 !important; }
 
         /* Specialized Centered Modals */
-        #options-modal-overlay.active, #about-modal-overlay.active, #download-modal-overlay.active { display: flex !important; align-items: center !important; justify-content: center !important; background-color: rgba(20, 15, 10, 0.75) !important; pointer-events: auto !important; }
-        #options-modal-overlay .modal-box, #about-modal-overlay .modal-box, #download-modal-overlay .modal-box { position: relative !important; top: auto !important; left: auto !important; margin: 0 !important; transform: translateY(15px); }
-        #options-modal-overlay.active .modal-box, #about-modal-overlay.active .modal-box, #download-modal-overlay.active .modal-box { transform: translateY(0) !important; }
+        #options-modal-overlay.active, #about-modal-overlay.active, #download-modal-overlay.active, #hotkeys-modal-overlay.active { display: flex !important; align-items: center !important; justify-content: center !important; background-color: rgba(20, 15, 10, 0.75) !important; pointer-events: auto !important; }
+        #options-modal-overlay .modal-box, #about-modal-overlay .modal-box, #download-modal-overlay .modal-box, #hotkeys-modal-overlay .modal-box { position: relative !important; top: auto !important; left: auto !important; margin: 0 !important; transform: translateY(15px); }
+        #options-modal-overlay.active .modal-box, #about-modal-overlay.active .modal-box, #download-modal-overlay.active .modal-box, #hotkeys-modal-overlay.active .modal-box { transform: translateY(0) !important; }
+
+        /* Ensures Hotkey sub-menu sits cleanly over the Options modal */
+        #hotkeys-modal-overlay { z-index: 4500; background-color: rgba(20, 15, 10, 0.45) !important; }
 
         .options-section { margin-bottom: 20px; text-align: left; background: var(--header-bg); border: 1px solid var(--border-color); padding: 12px 15px; border-radius: 6px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
         .options-heading { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 0; margin-bottom: 12px; }
 
-        .option-label { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; color: var(--text-main); margin-bottom: 4px; padding: 6px 8px; border-radius: 4px; cursor: pointer; user-select: none; transition: background 0.15s; }
+        .option-label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-main); margin-bottom: 1px; padding: 3px 8px; border-radius: 4px; cursor: pointer; user-select: none; transition: background 0.15s; }
         .option-label:hover { background: rgba(255, 255, 255, 0.05); }
 
         /* Custom iOS-style toggle switches for the options menu */
@@ -296,43 +299,81 @@
         @media (min-width: 1450px) and (min-aspect-ratio: 1/1) {
             main {
                 display: grid;
-                /*
-                   Sidebars lock to 400px but expand (1fr) to hug the board if there is extra space.
-                   The center column calculates the board's max width based on window height, stopping it from creating empty space.
-                */
                 grid-template-columns: minmax(400px, 1fr) minmax(0, calc((100vh - 62px) / 1.071)) minmax(400px, 1fr);
-
-                /* Create 5 granular rows to mathematically decouple the left and right columns */
                 grid-template-rows: auto auto 1fr auto auto;
                 align-items: stretch;
-
-                /* Reduce vertical gaps to 8px for tight packing, keep 15px horizontal spacing */
                 gap: 8px 15px;
             }
 
-            /* Invisibly remove the sidebar wrapper so the Grid can grab the panels inside */
             .sidebar { display: contents; }
 
-            /* Left Column: Game Info & Vertical Tree */
-            /* Because Game Info defines Row 1, Row 2 starts EXACTLY beneath it. */
-            .sidebar > .panel:nth-child(1) { grid-column: 1; grid-row: 1; }
+            /* Left Column: Analysis (Top) & Vertical Tree (Bottom) */
+            .sidebar > .panel:nth-child(2) { grid-column: 1; grid-row: 1; align-self: start; }
             .sidebar > .panel:nth-child(3) { grid-column: 1; grid-row: 2 / span 4; margin-bottom: 0; }
 
             /* Center Column: The Go Board */
             .board-container { grid-column: 2; grid-row: 1 / span 5; }
 
-            /* Right Column: Analysis, Comments, Tools, Actions */
-            .sidebar > .panel:nth-child(2) { grid-column: 3; grid-row: 1 / span 2; align-self: start; }
+            /* Right Column: Game Info, Comments, Tools, Actions */
+            /* Span Game Info across 2 rows so Row 1 can shrink-wrap the Analysis box */
+            .sidebar > .panel:nth-child(1) { grid-column: 3; grid-row: 1 / span 2; }
+
+            /* Hide the popover's Game Info header when its contents are moved to the sidebar */
+            #game-info-header { display: none; }
+            #metadata-header { border-top: none !important; margin-top: 0 !important; padding-top: 0 !important; }
+
+            /* Hide the popover's Game Info header when its contents are moved to the sidebar */
+            #game-info-header { display: none; }
+            #metadata-header { border-top: none !important; margin-top: 0 !important; padding-top: 0 !important; }
+
+            /* Expand the extra fields cleanly when inside the Game Info Panel */
+            .sidebar > .panel:nth-child(1) #extra-info-fields {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 4px 12px; /* The '12px' controls the gap between the left and right columns */
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid var(--border-color);
+            }
+
+            /* The magic flex rules to maximize input length symmetrically */
+            .sidebar > .panel:nth-child(1) #extra-info-fields .info-row {
+                margin: 0;
+                align-items: center;
+                display: flex;
+                width: 100%;
+                gap: 6px; /* Space directly between the text label and the input box */
+            }
+
+            .sidebar > .panel:nth-child(1) #extra-info-fields .info-label {
+                width: 65px; /* Decrease this to make the input boxes even longer */
+                padding-right: 0;
+                flex-shrink: 0;
+            }
+
+            .sidebar > .panel:nth-child(1) #extra-info-fields .info-input {
+                flex: 1; /* Forces the input box to eat up 100% of the remaining space */
+                min-width: 0;
+            }
+
+            /* Make the Result row (the last child) span both columns at the very bottom */
+            .sidebar > .panel:nth-child(1) #extra-info-fields > div:last-child {
+                grid-column: 1 / -1;
+                margin-top: 6px !important;
+            }
+
+            /* Comments now sits in Row 3 (1fr) so it fills the remaining extra space */
             .sidebar > .panel:nth-child(4) {
                 grid-column: 3;
                 grid-row: 3;
                 display: flex !important;
                 flex-direction: column;
             }
+
             .sidebar > .panel:nth-child(5) { grid-column: 3; grid-row: 4; }
+            .sidebar > .panel:nth-child(5) .tools-row { justify-content: space-between; }
             .sidebar > .panel:nth-child(6) { grid-column: 3; grid-row: 5; }
 
-            /* The Comments box lives in Row 3 (1fr), so it aggressively stretches to fill all extra space */
             .comments-box { flex: 1; height: 100% !important; min-height: 150px; }
         }
 
@@ -344,7 +385,7 @@
                 grid-template-columns: 1fr 1fr;
                 /* Row 1: Player Info, Row 2: Board, Row 3: Tree (Left) / Winrate (Right)
                    Row 4: Comments (Left) / Tools (Right), Row 5: Comments (Left) / Actions (Right) */
-                grid-template-rows: max-content max-content minmax(150px, 1fr) max-content max-content max-content;
+                grid-template-rows: max-content max-content minmax(180px, 1fr) max-content max-content max-content;
                 gap: 5px;
                 padding: 8px;
                 overflow-x: hidden;
@@ -430,7 +471,7 @@
 <body>
   <header id="main-header">
         <h1 id="btn-about" style="display: flex; align-items: center; margin: 0; cursor: pointer; transition: opacity 0.15s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'" title="About Hoshi">
-          <svg viewBox="640 525 615 160" style="height: 1.3rem; width: auto; display: block; pointer-events: none;" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <svg viewBox="640 525 615 160" style="height: 1.27rem; width: auto; display: block; pointer-events: none; opacity: 0.6" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
               <path d="M864.19,528.81c-42.05,0-76.14,34.09-76.14,76.14s34.09,76.14,76.14,76.14s76.14-34.09,76.14-76.14 S906.24,528.81,864.19,528.81z M899.96,611.61c-17.53,4.22-26.47,16.5-30.08,33.3c-2.08,9.68-3.67,19.47-5.38,28.69 c-1.45-8.23-2.84-16.99-4.59-25.68c-1.71-8.5-4.31-16.72-9.89-23.6c-7.92-9.75-19.19-12.93-30.78-15.31 c-6.78-1.39-13.61-2.5-20.42-3.73c-0.01-0.23-0.01-0.46-0.02-0.69c6.81-1.24,13.65-2.36,20.43-3.76 c11.44-2.36,22.65-5.41,30.54-14.96c5.83-7.05,8.5-15.53,10.21-24.32c1.66-8.56,3.08-17.16,4.51-25.24 c1.72,9.28,3.24,19.12,5.44,28.81c2.46,10.82,6.69,20.83,16.55,27.22c7.12,4.62,15.13,6.95,23.38,8.51 c6.73,1.27,13.48,2.47,20.39,4.45c-1.15,0.22-2.3,0.43-3.44,0.67C917.86,607.83,908.85,609.47,899.96,611.61z M648.72,678.13V530.99h22.61v147.14H648.72z M661.05,613.6v-21.37h87.13v21.37H661.05z M740.17,678.13V530.99h22.4 v147.14H740.17z M1006.71,681.42c-7.81,0-15.28-1.54-22.4-4.62c-7.13-3.08-13.39-7.64-18.8-13.67c-5.41-6.03-9.42-13.49-12.02-22.4 l21.37-8.63c2.19,7.95,6.03,14.59,11.51,19.93c5.48,5.34,12.33,8.01,20.55,8.01c4.66,0,9.01-0.82,13.05-2.47 c4.04-1.64,7.29-4.07,9.76-7.29c2.47-3.22,3.7-7.16,3.7-11.82c0-4.38-1.03-8.12-3.08-11.2c-2.06-3.08-5.34-5.89-9.86-8.43 c-4.52-2.53-10.28-5.03-17.26-7.5l-9.25-3.29c-3.98-1.51-8.01-3.36-12.12-5.55c-4.11-2.19-7.91-4.9-11.41-8.12 c-3.49-3.22-6.27-7.02-8.32-11.41c-2.05-4.38-3.08-9.45-3.08-15.21c0-7.4,1.95-14.11,5.86-20.14c3.9-6.03,9.32-10.86,16.24-14.49 c6.92-3.63,14.97-5.45,24.15-5.45c9.45,0,17.37,1.68,23.74,5.03c6.37,3.36,11.37,7.37,15,12.02c3.63,4.66,6.13,9.11,7.5,13.36 l-20.34,8.63c-0.82-2.88-2.3-5.68-4.42-8.43c-2.13-2.74-4.93-5.04-8.43-6.88c-3.49-1.85-7.78-2.77-12.84-2.77 c-4.39,0-8.39,0.82-12.02,2.47c-3.63,1.64-6.54,3.87-8.73,6.68c-2.19,2.81-3.29,6.06-3.29,9.76c0,5.34,2.19,9.69,6.58,13.05 c4.38,3.36,10.75,6.41,19.11,9.14l9.45,3.29c4.79,1.64,9.52,3.6,14.18,5.86c4.66,2.26,8.9,5.14,12.74,8.63 c3.83,3.49,6.88,7.74,9.14,12.74c2.26,5,3.39,10.93,3.39,17.78c0,7.54-1.47,14.08-4.42,19.63c-2.95,5.55-6.85,10.07-11.71,13.56 c-4.86,3.49-10.21,6.06-16.03,7.71C1018.04,680.6,1012.32,681.42,1006.71,681.42z M1080.69,678.13V530.99h22.61v147.14H1080.69z M1093.02,613.6v-21.37h87.13v21.37H1093.02z M1172.14,678.13V530.99h22.4 v147.14H1172.14z M1227.42,678.13V530.99h22.61v147.14H1227.42z"/>
           </svg>
         </h1>
@@ -506,10 +547,36 @@
                         </div>
 
                         <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                            <button id="toggle-bubbles" class="action-btn active-action" style="width: 22px; height: 22px; padding: 0; font-size: 0.75rem; min-width: 0;" title="Toggle AI Moves">B</button>
-                            <button id="toggle-score-graph" class="action-btn active-action" style="width: 22px; height: 22px; padding: 0; font-size: 0.75rem; min-width: 0;" title="Toggle Score Graph">S</button>
-                            <button id="toggle-wr-graph" class="action-btn active-action" style="width: 22px; height: 22px; padding: 0; font-size: 0.75rem; min-width: 0;" title="Toggle Winrate Graph">W</button>
+                            <!-- AI Bubbles (B) -->
+                            <button id="toggle-bubbles" class="action-btn active-action" style="width: 22px; height: 22px; padding: 0; min-width: 0; display: flex; align-items: center; justify-content: center;" title="Toggle AI Moves">
+                                <svg viewBox="0 0 14 14" width="14" height="14">
+                                    <defs>
+                                        <linearGradient id="ai-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="50%" stop-color="#3b82f6" />
+                                            <stop offset="50%" stop-color="#10b981" />
+                                        </linearGradient>
+                                    </defs>
+                                    <circle cx="7" cy="7" r="7" fill="url(#ai-grad)"></circle>
+                                </svg>
+                            </button>
+
+                            <!-- Score Graph (S) -->
+                            <button id="toggle-score-graph" class="action-btn active-action" style="width: 22px; height: 22px; padding: 0; min-width: 0; display: flex; align-items: center; justify-content: center;" title="Toggle Score Graph">
+                                <svg viewBox="0 0 24 24" width="16" height="16">
+                                    <path d="M 2 12 C 5 12, 5 4, 8 4 C 11 4, 11 12, 14 12 Z" fill="#222222"></path>
+                                    <path d="M 14 12 L 18 20 L 22 12 Z" fill="#e0d5c1"></path>
+                                    <line x1="2" y1="12" x2="22" y2="12" stroke="#a89e99" stroke-width="1.5"></line>
+                                </svg>
+                            </button>
+
+                            <!-- Winrate Graph (W) -->
+                            <button id="toggle-wr-graph" class="action-btn active-action" style="width: 22px; height: 22px; padding: 0; min-width: 0; display: flex; align-items: center; justify-content: center;" title="Toggle Winrate Graph">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="2 20 7 13 11 16 16 5 22 8"></polyline>
+                                </svg>
+                            </button>
                         </div>
+
                     </div>
                 </div>
             </div>
@@ -622,26 +689,29 @@
     </div>
 
     <div id="info-popover" class="info-popover" style="max-height: 80vh; overflow-y: auto;">
-        <h2 style="font-size: 0.9rem; margin-top: 0; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase;">Game Information</h2>
+        <h2 id="game-info-header" style="font-size: 0.9rem; margin-top: 0; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase;">Game Information</h2>
 
-        <div class="info-row"><span class="info-label">Event</span><input type="text" class="info-input" id="info-event" placeholder="-" style="background: var(--input-bg);"></div>
-        <div class="info-row"><span class="info-label">Round</span><input type="text" class="info-input" id="info-round" placeholder="-" style="background: var(--input-bg);"></div>
-        <div class="info-row"><span class="info-label">Date</span><input type="text" class="info-input" id="info-date" placeholder="YYYY-MM-DD" style="background: var(--input-bg);"></div>
-        <div class="info-row"><span class="info-label">Place</span><input type="text" class="info-input" id="info-place" placeholder="-" style="background: var(--input-bg);"></div>
-        <div class="info-row"><span class="info-label">Rules</span><input type="text" class="info-input" id="info-rules" placeholder="-" style="background: var(--input-bg);"></div>
-        <div class="info-row"><span class="info-label">Main Time</span><input type="text" class="info-input" id="info-time" placeholder="-" style="background: var(--input-bg);"></div>
-        <div class="info-row"><span class="info-label">Overtime</span><input type="text" class="info-input" id="info-overtime" placeholder="-" style="background: var(--input-bg);"></div>
-        <div class="info-row"><span class="info-label">Komi</span><input type="text" class="info-input" id="info-komi" placeholder="6.5" style="background: var(--input-bg);"></div>
+        <!-- All standard info is now grouped so it travels together -->
+        <div id="extra-info-fields">
+            <div class="info-row"><span class="info-label">Event</span><input type="text" class="info-input" id="info-event" placeholder="-" style="background: var(--input-bg);"></div>
+            <div class="info-row"><span class="info-label">Round</span><input type="text" class="info-input" id="info-round" placeholder="-" style="background: var(--input-bg);"></div>
+            <div class="info-row"><span class="info-label">Date</span><input type="text" class="info-input" id="info-date" placeholder="YYYY-MM-DD" style="background: var(--input-bg);"></div>
+            <div class="info-row"><span class="info-label">Place</span><input type="text" class="info-input" id="info-place" placeholder="-" style="background: var(--input-bg);"></div>
+            <div class="info-row"><span class="info-label">Rules</span><input type="text" class="info-input" id="info-rules" placeholder="-" style="background: var(--input-bg);"></div>
+            <div class="info-row"><span class="info-label">Komi</span><input type="text" class="info-input" id="info-komi" placeholder="6.5" style="background: var(--input-bg);"></div>
+            <div class="info-row"><span class="info-label">Main Time</span><input type="text" class="info-input" id="info-time" placeholder="-" style="background: var(--input-bg);"></div>
+            <div class="info-row"><span class="info-label">Overtime</span><input type="text" class="info-input" id="info-overtime" placeholder="-" style="background: var(--input-bg);"></div>
 
-        <div class="info-row" style="margin-top: 15px;">
-            <span class="info-label">Result</span>
-            <div style="position: relative; width: 100%;">
-                <input type="text" class="info-input result-input" id="result-input" placeholder="-" style="background: var(--input-bg);" title="Click to hide" readonly>
-                <button class="reveal-btn" id="reveal-result-btn" style="display: none;">Click to reveal</button>
+            <div class="info-row" style="margin-top: 15px;">
+                <span class="info-label">Result</span>
+                <div style="position: relative; width: 100%;">
+                    <input type="text" class="info-input result-input" id="result-input" placeholder="-" style="background: var(--input-bg);" title="Click to hide" readonly>
+                    <button class="reveal-btn" id="reveal-result-btn" style="display: none;">Click to reveal</button>
+                </div>
             </div>
         </div>
 
-        <h2 style="font-size: 0.9rem; margin-top: 20px; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; border-top: 1px solid var(--border-color); padding-top: 15px;">Metadata</h2>
+        <h2 id="metadata-header" style="font-size: 0.9rem; margin-top: 20px; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; border-top: 1px solid var(--border-color); padding-top: 15px;">Metadata</h2>
 
         <div class="info-row" style="align-items: flex-start;">
             <span class="info-label" style="margin-top: 4px;">Summary</span>
@@ -691,104 +761,129 @@
         </div>
     </div>
 
+    <!-- Main Options Modal -->
     <div id="options-modal-overlay" class="modal-overlay">
-          <div class="modal-box" style="width: 460px;">
-              <h3 class="modal-title" style="margin-bottom: 15px;">Options</h3>
+        <div class="modal-box" style="width: 560px;"> <!-- Widened slightly for the 2-column layout -->
+            <h3 class="modal-title" style="margin-bottom: 15px;">Options</h3>
 
-              <div class="options-section">
-                  <h4 class="options-heading">Visual Indicators</h4>
+            <!-- 2-Column Grid Layout -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
 
-                  <label class="option-label">
-                      <input type="checkbox" id="opt-current-move">
-                      <div class="indicator-preview">
-                          <svg width="22" height="22" viewBox="0 0 24 24">
-                              <circle cx="12" cy="12" r="11" fill="#241c17"/>
-                              <circle cx="12" cy="12" r="6" fill="none" stroke="#ffffff" stroke-width="1.75"/>
-                          </svg>
-                      </div>
-                      Current move
-                  </label>
+                <!-- Left Column: Visual Indicators -->
+                <div class="options-section" style="margin-bottom: 0;">
+                    <h4 class="options-heading">Visual Indicators</h4>
 
-                  <label class="option-label">
-                      <input type="checkbox" id="opt-next-move">
-                      <div class="indicator-preview">
-                          <svg width="22" height="22" viewBox="0 0 24 24">
-                              <circle cx="12" cy="12" r="11" fill="#241c17"/>
-                              <circle cx="12" cy="12" r="6" fill="none" stroke="#ffffff" stroke-width="1.75" stroke-dasharray="3 2.5"/>
-                          </svg>
-                      </div>
-                      Next move
-                  </label>
+                    <label class="option-label">
+                        <input type="checkbox" id="opt-current-move">
+                        <div class="indicator-preview">
+                            <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="transparent" stroke="var(--text-main)" stroke-width="2.5"></circle></svg>
+                        </div>
+                        Current move
+                    </label>
 
-                  <label class="option-label">
-                      <input type="checkbox" id="opt-alt-move">
-                      <div class="indicator-preview">
-                          <svg width="22" height="22" viewBox="0 0 24 24">
-                              <circle cx="12" cy="12" r="11" fill="#241c17"/>
-                              <circle cx="12" cy="12" r="6" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.75"/>
-                          </svg>
-                      </div>
-                      Alternate variation move
-                  </label>
+                    <label class="option-label">
+                        <input type="checkbox" id="opt-next-move">
+                        <div class="indicator-preview">
+                            <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="transparent" stroke="var(--text-main)" stroke-width="2" stroke-dasharray="4,3"></circle></svg>
+                        </div>
+                        Next move
+                    </label>
 
-                  <label class="option-label">
-                      <input type="checkbox" id="opt-alt-next-move">
-                      <div class="indicator-preview">
-                          <svg width="22" height="22" viewBox="0 0 24 24">
-                              <circle cx="12" cy="12" r="11" fill="#241c17"/>
-                              <circle cx="12" cy="12" r="6" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.75" stroke-dasharray="3 2.5"/>
-                          </svg>
-                      </div>
-                      Alternate variation next move
-                  </label>
+                    <label class="option-label">
+                        <input type="checkbox" id="opt-alt-move">
+                        <div class="indicator-preview">
+                            <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="transparent" stroke="var(--text-muted)" stroke-width="2.5"></circle></svg>
+                        </div>
+                        Alt. variation move
+                    </label>
 
-                  <label class="option-label">
-                      <input type="checkbox" id="opt-coord-highlight">
-                      <div class="indicator-preview" style="width: auto; padding: 0 6px; background: #DCB35C; border-radius: 3px; gap: 5px; font-family: 'Google Sans', sans-serif; font-size: 0.75rem; font-weight: 600; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);">
-                          <span style="color: #2b1c14; opacity: 0.7;">D</span>
-                          <span style="color: #c43b3b;">E</span>
-                          <span style="color: #2b1c14; opacity: 0.7;">F</span>
-                      </div>
-                      Coordinate highlight
-                  </label>
-              </div>
+                    <label class="option-label">
+                        <input type="checkbox" id="opt-alt-next-move">
+                        <div class="indicator-preview">
+                            <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="transparent" stroke="var(--text-muted)" stroke-width="2" stroke-dasharray="4,3"></circle></svg>
+                        </div>
+                        Alt. next move
+                    </label>
 
-              <div class="options-section">
-                  <h4 class="options-heading">General</h4>
-                  <label class="option-label">
-                      <input type="checkbox" id="opt-save-confirm">
-                      Enable Save confirmation
-                  </label>
-              </div>
+                    <label class="option-label" style="margin-bottom: 0;">
+                        <input type="checkbox" id="opt-coord-highlight">
+                        <div class="indicator-preview" style="color: #c43b3b; font-weight: bold; font-family: var(--coordLetterFontFamily, sans-serif); font-size: 1rem;">A</div>
+                        Coordinate highlight
+                    </label>
+                </div>
 
-              <div class="options-section">
-                  <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;">
-                      <h4 class="options-heading" style="margin-bottom: 0;">KataGo Engine</h4>
-                      <button id="btn-auto-download" class="action-btn" style="flex: 0 0 auto; padding: 3px 10px; background: rgba(194, 155, 90, 0.15); color: var(--text-main); border-color: rgba(194, 155, 90, 0.4);">Auto-Setup</button>
-                  </div>
-                  <div class="engine-input-group">
-                      <span class="info-label" style="width: 80px; text-align: right; padding-right: 8px;">Executable</span>
-                      <input type="text" id="opt-engine-exe" class="info-input" placeholder="Path to katago.exe" style="background: var(--input-bg);">
-                      <button id="btn-browse-exe" class="action-btn" style="flex: 0 0 auto; margin-left: 8px; padding: 2px 10px;">Browse</button>
-                  </div>
-                  <div class="engine-input-group">
-                      <span class="info-label" style="width: 80px; text-align: right; padding-right: 8px;">Network</span>
-                      <input type="text" id="opt-engine-network" class="info-input" placeholder="Path to .bin.gz model" style="background: var(--input-bg);">
-                      <button id="btn-browse-net" class="action-btn" style="flex: 0 0 auto; margin-left: 8px; padding: 2px 10px;">Browse</button>
-                  </div>
-                  <div class="engine-input-group" style="margin-bottom: 0;">
-                      <span class="info-label" style="width: 80px; text-align: right; padding-right: 8px;">Config</span>
-                      <input type="text" id="opt-engine-config" class="info-input" placeholder="Path to .cfg file" style="background: var(--input-bg);">
-                      <button id="btn-browse-cfg" class="action-btn" style="flex: 0 0 auto; margin-left: 8px; padding: 2px 10px;">Browse</button>
-                  </div>
-              </div>
+                <!-- Right Column: Toggles & Hotkeys -->
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div class="options-section" style="margin-bottom: 0;">
+                        <h4 class="options-heading">Confirmation Toggles</h4>
+                        <label class="option-label" style="margin-bottom: 6px;">
+                            <input type="checkbox" id="opt-save-confirm"> Save confirmation
+                        </label>
+                        <label class="option-label" style="margin-bottom: 6px;">
+                            <input type="checkbox" id="opt-new-confirm"> New Game confirmation
+                        </label>
+                        <label class="option-label" style="margin-bottom: 0;">
+                            <input type="checkbox" id="opt-delete-confirm"> Delete Node confirmation
+                        </label>
+                    </div>
 
-              <div class="modal-actions" style="margin-top: 20px;">
-                  <button id="options-modal-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
-                  <button id="options-modal-save" class="modal-btn modal-btn-confirm" style="background: rgba(194, 155, 90, 0.4); color: var(--text-main); border: 1px solid var(--brass);">Save Changes</button>
-              </div>
-          </div>
+                    <!-- Hotkeys Button fills the remaining vertical space -->
+                    <button id="btn-open-hotkeys" class="action-btn" style="flex: 1; width: 100%; font-size: 0.85rem; background: rgba(194, 155, 90, 0.15); border-color: rgba(194, 155, 90, 0.4); color: var(--text-main);">Configure Hotkeys</button>
+                </div>
+
+            </div> <!-- End of 2-Column Grid -->
+
+            <div class="options-section">
+                <!-- Updated header row for Auto-Setup -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h4 class="options-heading" style="margin-bottom: 0;">KataGo Engine</h4>
+                    <button id="btn-auto-download" class="action-btn" style="flex: 0 0 auto; padding: 3px 10px; font-size: 0.8rem; font-weight: bold; background: rgba(194, 155, 90, 0.15); color: var(--text-main); border-color: rgba(194, 155, 90, 0.4);">Auto-Setup</button>
+                </div>
+                <div class="engine-input-group">
+                    <span class="info-label" style="width: 80px; text-align: right; padding-right: 8px;">Executable</span>
+                    <input type="text" id="opt-engine-exe" class="info-input" style="background: var(--input-bg);">
+                    <button id="btn-browse-exe" class="action-btn" style="flex: 0 0 auto; margin-left: 8px; padding: 3px 10px;">Browse</button>
+                </div>
+                <div class="engine-input-group">
+                    <span class="info-label" style="width: 80px; text-align: right; padding-right: 8px;">Network</span>
+                    <input type="text" id="opt-engine-network" class="info-input" style="background: var(--input-bg);">
+                    <button id="btn-browse-net" class="action-btn" style="flex: 0 0 auto; margin-left: 8px; padding: 3px 10px;">Browse</button>
+                </div>
+                <div class="engine-input-group" style="margin-bottom: 0;">
+                    <span class="info-label" style="width: 80px; text-align: right; padding-right: 8px;">Config</span>
+                    <input type="text" id="opt-engine-config" class="info-input" style="background: var(--input-bg);">
+                    <button id="btn-browse-cfg" class="action-btn" style="flex: 0 0 auto; margin-left: 8px; padding: 3px 10px;">Browse</button>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button id="options-modal-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
+                <button id="options-modal-save" class="modal-btn modal-btn-confirm" style="background: rgba(194, 155, 90, 0.4); color: var(--text-main); border: 1px solid var(--brass);">Save Changes</button>
+            </div>
         </div>
+    </div>
+
+    <!-- NEW: Hotkeys Sub-Menu Overlay -->
+    <div id="hotkeys-modal-overlay" class="modal-overlay">
+        <div class="modal-box" style="width: 550px; max-height: 85vh; display: flex; flex-direction: column; padding: 0;">
+            <div style="padding: 15px 20px 10px 20px; border-bottom: 1px solid var(--border-color);">
+                <h3 class="modal-title" style="margin: 0;">Key Bindings</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 0 0;">Click an input box and press a key combo to rebind. Press Backspace to clear.</p>
+            </div>
+
+            <div style="overflow-y: auto; padding: 15px 20px; flex: 1;">
+                <div id="hotkey-list-container" style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- JS will populate this list dynamically -->
+                </div>
+            </div>
+
+            <div class="modal-actions" style="padding: 15px 20px; border-top: 1px solid var(--border-color); background: var(--panel-bg); border-radius: 0 0 8px 8px;">
+                <button id="hotkeys-modal-reset" class="modal-btn modal-btn-cancel" style="margin-right: auto;">Reset Defaults</button>
+                <button id="hotkeys-modal-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
+                <button id="hotkeys-modal-save" class="modal-btn modal-btn-confirm" style="background: rgba(194, 155, 90, 0.4); color: var(--text-main); border: 1px solid var(--brass);">Confirm</button>
+            </div>
+        </div>
+    </div>
 
         <div id="about-modal-overlay" class="modal-overlay">
             <div class="modal-box" style="width: 380px; text-align: center;">
