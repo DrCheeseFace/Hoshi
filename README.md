@@ -63,7 +63,7 @@ A simple SGF viewer/editor and GUI for KataGo AI to analyze one's Go games.
 
 ## v1.1.1
 ### Auto-setup feature
-No more bundling with a KataGo folder! If you don't already have KataGo, there is now a nifty `Auto-setup` button in the Options menu, allowing you to easily download the appropriate KataGo version for your system.
+No more bundling with a KataGo folder - if you don't already have KataGo, there is now a nifty `Auto-setup` button in the Options menu, allowing you to easily download the appropriate KataGo version for your system.
 
 ## v1.1.0
 ### Moved to Tauri
