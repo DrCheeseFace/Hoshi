@@ -17,7 +17,9 @@ if (header) {
 // --- 2. ELECTRON API MOCK ---
 window.electronAPI = {
     getSystemProfile: async () => await invoke('get_system_profile'),
+    checkCudaInstalled: async () => await invoke('check_cuda_installed'),
     checkForUpdates: async () => await invoke('check_for_updates'),
+    openExternal: (url) => invoke('open_external', { url: url }),
     chooseDownloadFolder: async () => await invoke('native_folder_dialog', { title: "Select Installation Folder" }),
     getAppBaseDir: async () => await invoke('get_app_base_dir'),
     resolveDestination: async (path) => await invoke('resolve_destination', { basePath: path }),

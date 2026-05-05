@@ -23,6 +23,31 @@ struct AppState {
 }
 
 #[tauri::command]
+fn open_external(url: String) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .creation_flags(0x08000000)
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("open").arg(&url).spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = Command::new("xdg-open").arg(&url).spawn();
+    }
+}
+
+#[tauri::command]
+fn check_cuda_installed() -> bool {
+    // Checks if the CUDA_PATH environment variable exists
+    std::env::var("CUDA_PATH").is_ok()
+}
+
+#[tauri::command]
 async fn check_for_updates() -> Result<serde_json::Value, String> {
     let client = reqwest::Client::new();
 
@@ -395,7 +420,8 @@ fn main() {
             native_open_dialog, native_save_dialog, start_katago, stop_katago, send_katago_command,
             file_exists,
             download_katago, check_for_updates, get_system_profile, native_folder_dialog,
-            get_app_base_dir, resolve_destination, cancel_download
+            get_app_base_dir, resolve_destination, cancel_download, check_cuda_installed,
+            open_external
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

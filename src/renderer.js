@@ -4477,6 +4477,7 @@ document.getElementById('btn-auto-download').addEventListener('click', async (e)
     try {
         const profile = await window.electronAPI.getSystemProfile();
         const updates = await window.electronAPI.checkForUpdates();
+        const hasCuda = window.electronAPI.checkCudaInstalled ? await window.electronAPI.checkCudaInstalled() : false;
 
         // Populate Default Directory
         const baseDir = await window.electronAPI.getAppBaseDir();
@@ -4492,9 +4493,29 @@ document.getElementById('btn-auto-download').addEventListener('click', async (e)
         const getAsset = (keyword) => updates.assets.find(url => url.includes(keyword));
 
         let engineType = "";
+        let recommendationNote = "";
+        const isNvidia = gpu.includes("nvidia") || gpu.includes("geforce") || gpu.includes("rtx") || gpu.includes("gtx");
+
         if (os === "windows") {
-            pendingEngineUrl = getAsset("opencl-windows-x64");
-            engineType = "OpenCL (Windows)";
+            if (isNvidia && hasCuda) {
+                // They have an NVIDIA card AND the toolkits installed
+                // We check for tensorrt first, fallback to cuda if tensor isn't in the release name
+                pendingEngineUrl = getAsset("tensorrt-windows-x64") || getAsset("cuda-windows-x64") || getAsset("opencl-windows-x64");
+                engineType = "TensorRT (Maximum Performance)";
+            } else if (isNvidia && !hasCuda) {
+                // They have the hardware, but not the software
+                pendingEngineUrl = getAsset("opencl-windows-x64");
+                engineType = "OpenCL (Universal)";
+
+                // Add the note
+                recommendationNote = `
+                    <p style="font-size: 0.8rem; color: #fbbf24; margin-top: 12px; margin-bottom: 0; line-height: 1.4; background: rgba(245, 158, 11, 0.1); padding: 8px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.3);">
+                        <strong>Note:</strong> Your GPU is capable of running the TensorRT version of KataGo, which is faster than OpenCL, but you would require additional files from NVIDIA (CUDA and TensorRT). For more information, you can refer to the <a href="#" onclick="window.electronAPI.openExternal('https://github.com/lightvector/KataGo#opencl-vs-cuda-vs-tensorrt-vs-eigen'); return false;" style="color: #fbbf24; text-decoration: underline; cursor: pointer;">official KataGo documentation page</a>.
+                    </p>`;
+            } else {
+                pendingEngineUrl = getAsset("opencl-windows-x64");
+                engineType = "OpenCL (Windows)";
+            }
         } else if (os === "macos") {
             if (arch === "aarch64") {
                 pendingEngineUrl = getAsset("mac-m1");
@@ -4520,6 +4541,9 @@ document.getElementById('btn-auto-download').addEventListener('click', async (e)
             netType = "40-Block (Maximum Strength)";
         }
 
+        hwBox.style.height = 'auto';
+        hwBox.style.minHeight = '120px';
+
         hwBox.innerHTML =
             `<div style="width: 100%;">` +
             `<strong>OS:</strong> ${os} (${arch})<br>` +
@@ -4528,6 +4552,7 @@ document.getElementById('btn-auto-download').addEventListener('click', async (e)
             `<hr style="border: none; border-top: 1px solid var(--border-color); margin: 10px 0;">` +
             `<strong>Recommended Engine:</strong> ${engineType}<br>` +
             `<strong>Recommended Network:</strong> ${netType}` +
+            recommendationNote +
             `</div>`;
 
         if (!pendingEngineUrl) {
