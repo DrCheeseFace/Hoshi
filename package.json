@@ -1,9 +1,9 @@
 {
-  "name": "hoshi",
+  "name": "Hoshi",
   "productName": "Hoshi",
   "private": true,
   "version": "1.1.1",
-  "description": "SGF viewer/editor and KataGo UI.",
+  "description": "SGF viewer/editor and KataGo GUI.",
   "author": "The Hoshi Project",
   "type": "module",
   "scripts": {
