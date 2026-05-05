@@ -2883,15 +2883,21 @@ document.addEventListener('keydown', (e) => {
     if (!keyStr) return;
     if (executeHotkey(keyStr)) e.preventDefault();
 });
-
 // Master Mouse/Tracker Listener
 document.addEventListener('mousedown', (e) => {
     // Always prevent browser history navigation on thumb buttons
     if (e.button === 3 || e.button === 4) e.preventDefault();
 
-    // Suspend normal hotkeys if ANY modal (Options, Confirm, About, etc.) is open!
+    // Suspend normal hotkeys if any modal (Options, Confirm, About, etc.) is open
     if (document.querySelector('.modal-overlay.active')) return;
-    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+    // Prevent normal keys/clicks from triggering game hotkeys while typing,
+    // but explicitly allow Mouse Back (3) and Mouse Forward (4) to pass through
+    if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        if (e.button !== 3 && e.button !== 4) {
+            return;
+        }
+    }
 
     let btnStr = '';
     if (e.button === 1) btnStr = 'middleclick';
