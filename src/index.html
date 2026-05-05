@@ -371,7 +371,7 @@
             /* Make the Result row (the last child) span both columns at the very bottom */
             .sidebar > .panel:nth-child(1) #extra-info-fields > div:last-child {
                 grid-column: 1 / -1;
-                margin-top: 6px !important;
+                margin-top: 0px !important;
             }
 
             /* Comments now sits in Row 3 (1fr) so it fills the remaining extra space */
@@ -703,7 +703,7 @@
     <div id="info-popover" class="info-popover" style="max-height: 80vh; overflow-y: auto;">
         <h2 id="game-info-header" style="font-size: 0.9rem; margin-top: 0; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase;">Game Information</h2>
 
-        <!-- All standard info is now grouped so it travels together -->
+        <!-- All standard info is grouped so it travels together -->
         <div id="extra-info-fields">
             <div class="info-row"><span class="info-label">Event</span><input type="text" class="info-input" id="info-event" placeholder="-" style="background: var(--input-bg);"></div>
             <div class="info-row"><span class="info-label">Round</span><input type="text" class="info-input" id="info-round" placeholder="-" style="background: var(--input-bg);"></div>

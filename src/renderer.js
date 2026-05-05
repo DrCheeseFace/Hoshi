@@ -4919,6 +4919,220 @@ document.querySelectorAll('input, textarea').forEach(el => {
     el.setAttribute('data-lpignore', 'true');
 });
 
+// ============================================================================
+// 22. DYNAMIC INPUT SCROLLING & EXPANSION
+// ============================================================================
+function initInputUX() {
+    const inputs = document.querySelectorAll('main .info-input, main .game-title-input, .info-popover .info-input');
+
+    // 1. Recursive Marquee Scroll (Restarts X seconds after ending)
+    function checkAndScroll(input) {
+        const IDLE_DELAY_MS = 4000;
+
+        if (input.scrollWidth <= input.clientWidth || document.activeElement === input || input.dataset.isHovered) {
+            setTimeout(() => checkAndScroll(input), 1000);
+            return;
+        }
+
+        const maxScroll = input.scrollWidth - input.clientWidth;
+        const durationMs = (maxScroll / 25) * 1000;
+        let startTime = null;
+
+        input.scrollLeft = 0;
+
+        function tick(timestamp) {
+            if (document.activeElement === input || input.dataset.isHovered) {
+                input.scrollLeft = 0;
+                setTimeout(() => checkAndScroll(input), 1000);
+                return;
+            }
+
+            if (!startTime) startTime = timestamp;
+            let progress = (timestamp - startTime) / durationMs;
+
+            if (progress < 1) {
+                input.scrollLeft = maxScroll * progress;
+                requestAnimationFrame(tick);
+            } else {
+                input.scrollLeft = maxScroll;
+
+                setTimeout(() => {
+                    if (document.activeElement !== input && !input.dataset.isHovered) {
+                        input.scrollLeft = 0;
+                    }
+                    setTimeout(() => checkAndScroll(input), IDLE_DELAY_MS);
+                }, 2500);
+            }
+        }
+
+        requestAnimationFrame(tick);
+    }
+
+    inputs.forEach(input => {
+        setTimeout(() => checkAndScroll(input), 2000 + Math.random() * 2000);
+    });
+
+    // 2. Buttery Smooth Hover Expansion & Interaction
+    inputs.forEach(input => {
+        input.style.textOverflow = 'clip';
+
+        function expandInput() {
+            if (input._closeTimeout) {
+                clearTimeout(input._closeTimeout);
+                input._closeTimeout = null;
+            }
+
+            if (input.dataset.ghostId) {
+                const exactWidth = input.scrollWidth + (input.offsetWidth - input.clientWidth);
+                input.style.width = exactWidth + 'px';
+                input.style.backgroundColor = 'var(--input-bg)';
+                input.style.borderColor = '#5c4033';
+                return;
+            }
+
+            if (input.scrollWidth > input.clientWidth) {
+                const rect = input.getBoundingClientRect();
+                const exactWidth = input.scrollWidth + (input.offsetWidth - input.clientWidth);
+
+                const ghost = document.createElement('div');
+                ghost.id = 'ghost-' + Math.random().toString(36).substr(2, 9);
+                ghost.style.width = rect.width + 'px';
+                ghost.style.height = rect.height + 'px';
+                ghost.style.flex = window.getComputedStyle(input).flex;
+                input.parentNode.insertBefore(ghost, input);
+                input.dataset.ghostId = ghost.id;
+
+                // Backup styles
+                input.dataset.origPos = input.style.position || '';
+                input.dataset.origWidth = input.style.width || '';
+                input.dataset.origZ = input.style.zIndex || '';
+                input.dataset.origShadow = input.style.boxShadow || '';
+                input.dataset.origTransition = input.style.transition || '';
+                input.dataset.origBackground = input.style.background || '';
+                input.dataset.origBorderColor = input.style.borderColor || '';
+
+                input.style.transition = 'none';
+                input.style.position = 'fixed';
+                input.style.top = rect.top + 'px';
+                input.style.left = rect.left + 'px';
+                input.style.width = rect.width + 'px';
+                input.style.zIndex = '3000';
+
+                void input.offsetHeight;
+
+                // Animate open
+                input.style.transition = 'width 0.25s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.25s ease, background-color 0.15s ease, border-color 0.15s ease';
+                input.style.width = exactWidth + 'px';
+                input.style.boxShadow = '0 6px 16px rgba(0,0,0,0.6)';
+
+                input.style.backgroundColor = 'var(--input-bg)';
+                input.style.borderColor = '#5c4033';
+            }
+        }
+
+        function closeInput() {
+            // Expansion is now strictly dictated by mouse presence and drag activity
+            if (input.dataset.isHovered === 'true' || input.dataset.isDragging === 'true') {
+                return;
+            }
+
+            if (input.dataset.ghostId) {
+                const ghost = document.getElementById(input.dataset.ghostId);
+                const targetWidth = ghost ? ghost.offsetWidth : input.dataset.origWidth;
+
+                // Smoothly animate the shrink and colors back to normal
+                input.style.width = targetWidth + 'px';
+                input.style.boxShadow = input.dataset.origShadow;
+                input.style.background = input.dataset.origBackground;
+                input.style.borderColor = input.dataset.origBorderColor;
+
+                input._closeTimeout = setTimeout(() => {
+                    // Final safety check
+                    if (input.dataset.isHovered === 'true' || input.dataset.isDragging === 'true') return;
+
+                    input.style.transition = 'none';
+                    input.style.position = input.dataset.origPos;
+                    input.style.width = input.dataset.origWidth;
+                    input.style.zIndex = input.dataset.origZ;
+                    input.style.top = '';
+                    input.style.left = '';
+
+                    input.dataset.origPos = undefined;
+
+                    if (ghost) {
+                        ghost.remove();
+                        input.dataset.ghostId = '';
+                    }
+
+                    // Preserve the scroll view if the user still has text selected inside
+                    if (document.activeElement !== input) {
+                        input.scrollLeft = 0;
+                    }
+
+                    void input.offsetHeight;
+                    input.style.transition = input.dataset.origTransition;
+                    input._closeTimeout = null;
+                }, 250);
+            }
+        }
+
+        // --- MOUSE & FOCUS EVENTS ---
+
+        input.addEventListener('mouseenter', () => {
+            input.dataset.isHovered = 'true';
+            expandInput();
+        });
+
+        input.addEventListener('mouseleave', () => {
+            input.dataset.isHovered = '';
+            closeInput();
+        });
+
+        // Track when the user clicks down inside the input
+        input.addEventListener('mousedown', () => {
+            input.dataset.isDragging = 'true';
+        });
+
+        // Global tracker: When they release the mouse ANYWHERE on the screen
+        window.addEventListener('mouseup', () => {
+            if (input.dataset.isDragging === 'true') {
+                input.dataset.isDragging = '';
+                // Since dragging ended, check if we need to close (e.g. mouse is outside the field)
+                if (input.dataset.isHovered !== 'true') {
+                    closeInput();
+                }
+            }
+        });
+
+        // Shrink normally if they click on another part of the app entirely
+        input.addEventListener('blur', () => {
+            closeInput();
+            // Optional cleanup: if it fully lost focus, snap the scroll back
+            if (!input.dataset.ghostId) {
+                input.scrollLeft = 0;
+            }
+        });
+
+        // If they use the keyboard (Tab) to focus an overflowing field, pop it open
+        input.addEventListener('focus', () => {
+            if (input.scrollWidth > input.clientWidth) {
+                expandInput();
+            }
+        });
+
+        // If they type and the text grows large enough to overflow, expand it dynamically
+        input.addEventListener('input', () => {
+            if (input.dataset.ghostId) {
+                const exactWidth = input.scrollWidth + (input.offsetWidth - input.clientWidth);
+                input.style.width = exactWidth + 'px';
+            } else if (input.scrollWidth > input.clientWidth) {
+                expandInput();
+            }
+        });
+    });
+}
+
 document.fonts.ready.then(() => {
     render();
+    initInputUX();
 });
